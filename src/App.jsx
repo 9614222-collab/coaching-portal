@@ -327,11 +327,23 @@ export default function App(){
 }
 
 function NoticeGen(){
-  const [form,setForm]=useState({name:"",grade:"",type:"화상 수업",subject:"영어",times:"2",duration:"60",days:"매주 화요일 오후 4시, 매주 목요일 오후 4시",firstDate:"",book:"",publisher:"",studentId:"",fee:"",teacherPhone:"010-1234-5678",managerPhone:"010-9876-5432"});
+  const FEE_TABLE = {
+    "화상": {"초등":59000,"중등":67000,"고등1,2":77000,"고등3":82000},
+    "방문": {"초등":64000,"중등":74000,"고등1,2":84000,"고등3":94000},
+  };
+  const [form,setForm]=useState({name:"",schoolLevel:"초등",type:"화상",subject:"영어",times:"2",duration:"60",days:"매주 화요일 오후 4시, 매주 목요일 오후 4시",firstDate:"",book:"",publisher:"",studentId:"",fee:"",teacherPhone:"010-1234-5678",managerPhone:"010-2800-1465"});
   const [preview,setPreview]=useState(false);
   const p1=useRef(null),p2=useRef(null),p3=useRef(null);
   function set(k,v){setForm(f=>({...f,[k]:v}));}
-  function calcFee(){const t=parseInt(form.times)||0;const base=form.type.includes("방문")?74000:64000;return(base*t*4).toLocaleString("ko-KR");}
+  function calcFee(){
+    const t=parseInt(form.times)||0;
+    const base=FEE_TABLE[form.type]?.[form.schoolLevel]||0;
+    return(base*t*4).toLocaleString("ko-KR");
+  }
+  function getGradeLabel(){
+    if(form.type==="화상") return `화상 수업 (${form.schoolLevel})`;
+    return `방문 수업 (${form.schoolLevel})`;
+  }
   async function downloadImg(){
     const pages=[{ref:p1,name:"1페이지_수업안내"},{ref:p2,name:"2페이지_학부모말씀"},{ref:p3,name:"3페이지_결제안내"}];
     try{
@@ -353,14 +365,46 @@ function NoticeGen(){
         <div style={{display:"flex",flexDirection:"column",gap:10}}>
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
             <label style={lbSt}><span>회원 이름</span><input value={form.name} onChange={e=>set("name",e.target.value)} placeholder="예) 김학부모"/></label>
-            <label style={lbSt}><span>수업 대상 (학년)</span><input value={form.grade} onChange={e=>set("grade",e.target.value)} placeholder="예) 중학교 1학년"/></label>
-            <label style={lbSt}><span>수업 형태</span><select value={form.type} onChange={e=>set("type",e.target.value)} style={{padding:"8px 10px",borderRadius:8,border:"1px solid #ddd",fontSize:14,marginBottom:0,background:"#fafafa"}}><option>화상 수업</option><option>방문 수업</option></select></label>
+            <label style={lbSt}><span>수업 대상 (학년)</span><input value={form.grade||""} onChange={e=>set("grade",e.target.value)} placeholder="예) 중학교 1학년"/></label>
+            <label style={lbSt}>
+              <span>수업 형태</span>
+              <select value={form.type} onChange={e=>set("type",e.target.value)} style={{padding:"8px 10px",borderRadius:8,border:"1px solid #ddd",fontSize:14,marginBottom:0,background:"#fafafa"}}>
+                <option value="화상">화상 수업</option>
+                <option value="방문">방문 수업</option>
+              </select>
+            </label>
+            <label style={lbSt}>
+              <span>학교급</span>
+              <select value={form.schoolLevel} onChange={e=>set("schoolLevel",e.target.value)} style={{padding:"8px 10px",borderRadius:8,border:"1px solid #ddd",fontSize:14,marginBottom:0,background:"#fafafa"}}>
+                <option value="초등">초등</option>
+                <option value="중등">중등</option>
+                <option value="고등1,2">고등 1,2</option>
+                <option value="고등3">고등 3</option>
+              </select>
+            </label>
             <label style={lbSt}><span>수업 과목</span><input value={form.subject} onChange={e=>set("subject",e.target.value)} placeholder="예) 영어"/></label>
-            <label style={lbSt}><span>주 수업 횟수</span><input value={form.times} onChange={e=>set("times",e.target.value)} placeholder="예) 2"/></label>
+            <label style={lbSt}>
+              <span>주 수업 횟수 (타임)</span>
+              <select value={form.times} onChange={e=>set("times",e.target.value)} style={{padding:"8px 10px",borderRadius:8,border:"1px solid #ddd",fontSize:14,marginBottom:0,background:"#fafafa"}}>
+                {[1,2,3,4,5,6,7,8].map(n=><option key={n} value={String(n)}>{n}타임 (주 {n}회)</option>)}
+              </select>
+            </label>
             <label style={lbSt}><span>1회 수업 시간(분)</span><input value={form.duration} onChange={e=>set("duration",e.target.value)} placeholder="예) 60"/></label>
+            {/* 자동계산 수업료 표시 */}
+            <div style={{gridColumn:"1/-1",background:"#f0f7ff",borderRadius:10,padding:"12px 16px",border:"1px solid #BBDEFB",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+              <div>
+                <p style={{fontSize:11,color:"#1565C0",fontWeight:600,marginBottom:2}}>📊 예상 월 수업료 (자동계산)</p>
+                <p style={{fontSize:11,color:"#888"}}>{form.type} · {form.schoolLevel} · 주 {form.times}회 · 4주 기준</p>
+                <p style={{fontSize:11,color:"#888"}}>1회 단가: {(FEE_TABLE[form.type]?.[form.schoolLevel]||0).toLocaleString("ko-KR")}원 × {form.times}회 × 4주</p>
+              </div>
+              <div style={{textAlign:"right"}}>
+                <p style={{fontSize:24,fontWeight:700,color:"#1565C0"}}>{calcFee()}원</p>
+                <input value={form.fee} onChange={e=>set("fee",e.target.value)} placeholder="직접 입력시 덮어쓰기" style={{fontSize:11,padding:"4px 8px",marginBottom:0,marginTop:4,textAlign:"right",width:140,background:"#fff"}}/>
+              </div>
+            </div>
             <label style={{...lbSt,gridColumn:"1/-1"}}><span>수업 요일 및 시간</span><input value={form.days} onChange={e=>set("days",e.target.value)} placeholder="예) 매주 화요일 오후 4시, 매주 목요일 오후 4시"/></label>
             <label style={lbSt}><span>첫 수업 날짜</span><input value={form.firstDate} onChange={e=>set("firstDate",e.target.value)} placeholder="예) 3월 5일 (화) 오후 4시"/></label>
-            <label style={lbSt}><span>예상 월 수업료 (원, 비우면 자동계산)</span><input value={form.fee} onChange={e=>set("fee",e.target.value)} placeholder={`자동: ${calcFee()}원`}/></label>
+            <div style={lbSt}><span style={{fontSize:12,color:"#555"}}>수업 대상 학년 입력</span><input value={form.grade||""} onChange={e=>set("grade",e.target.value)} placeholder="예) 중학교 1학년"/></div>
             <label style={lbSt}><span>교재명</span><input value={form.book} onChange={e=>set("book",e.target.value)} placeholder="예) 기적의 파닉스"/></label>
             <label style={lbSt}><span>출판사</span><input value={form.publisher} onChange={e=>set("publisher",e.target.value)} placeholder="예) 길벗스쿨"/></label>
             <label style={{...lbSt,gridColumn:"1/-1"}}><span>학생 아이디</span><input value={form.studentId} onChange={e=>set("studentId",e.target.value)} placeholder="예) student123"/></label>
