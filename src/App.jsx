@@ -386,7 +386,7 @@ function NoticeGen(){
             <label style={lbSt}>
               <span>주 수업 횟수 (타임)</span>
               <select value={form.times} onChange={e=>set("times",e.target.value)} style={{padding:"8px 10px",borderRadius:8,border:"1px solid #ddd",fontSize:14,marginBottom:0,background:"#fafafa"}}>
-                {[1,2,3,4,5,6,7,8].map(n=><option key={n} value={String(n)}>{n}타임 (주 {n}회)</option>)}
+                {[2,3,4,5,6,7,8].map(n=><option key={n} value={String(n)}>{n}타임</option>)}
               </select>
             </label>
             <label style={lbSt}><span>1회 수업 시간(분)</span><input value={form.duration} onChange={e=>set("duration",e.target.value)} placeholder="예) 60"/></label>
