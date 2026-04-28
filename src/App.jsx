@@ -188,7 +188,7 @@ export default function App(){
         </div>
 
         <div className="tabs">
-          {[["calendar","📅 일정"],["resource","📂 자료"],["settle","💰 지원금"],["notice","📌 공지"],["notice_gen","📄 안내문"],...(isAdmin?[["progress","👥 현황"]]:[])]
+          {[["calendar","📅 일정"],["resource","📂 자료"],["settle","💰 지원금"],["notice","📌 공지"],["notice_gen","📄 안내문"],["free_lesson","🆓 무료수업"],...(isAdmin?[["progress","👥 현황"]]:[])]
             .map(([k,l])=><button key={k} className={`tab-btn${tab===k?" active":""}`} onClick={()=>setTab(k)}>{l}</button>)}
         </div>
 
@@ -307,6 +307,7 @@ export default function App(){
         )}
 
         {tab==="notice_gen"&&<NoticeGen/>}
+        {tab==="free_lesson"&&<FreeLessonNotice/>}
         {tab==="progress"&&isAdmin&&<ProgressTab/>}
 
         {showEv&&<Modal title="일정 추가" onClose={()=>setShowEv(false)}>
@@ -615,6 +616,166 @@ function NoticeGen(){
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+function FreeLessonNotice(){
+  const SUBJECTS = ['국어','영어','수학','사회','과학','공부9도'];
+  const WEEKDAYS = ['월요일','화요일','수요일','목요일','금요일','토요일','일요일'];
+  const MERIDIEMS = ['오전','오후'];
+
+  const [form,setForm]=useState({
+    studentName:'',teacherName:'',subject:'수학',
+    month:'1',day:'1',weekday:'월요일',meridiem:'오후',hour:'10',minute:'00',
+    testId:'',testPassword:'',guideImage:''
+  });
+  const previewRef=useRef(null);
+  const fileRef=useRef(null);
+
+  function setF(k,v){setForm(f=>({...f,[k]:v}));}
+
+  function handleImg(e){
+    const file=e.target.files?.[0];
+    if(!file)return;
+    const reader=new FileReader();
+    reader.onloadend=()=>setF('guideImage',reader.result);
+    reader.readAsDataURL(file);
+  }
+
+  async function downloadJpg(){
+    if(!previewRef.current)return;
+    try{
+      const {default:h2c}=await import("https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.esm.min.js");
+      const canvas=await h2c(previewRef.current,{scale:2,useCORS:true,backgroundColor:"#ffffff"});
+      const a=document.createElement('a');
+      a.href=canvas.toDataURL('image/jpeg',0.95);
+      a.download=`무료수업안내_${form.month}월${form.day}일_${form.studentName||'학생'}.jpg`;
+      a.click();
+    }catch(e){alert('이미지 저장 중 오류가 발생했습니다.');}
+  }
+
+  const fmtDate=`${form.month}월 ${form.day}일 ${form.weekday}`;
+  const fmtTime=`${form.meridiem} ${form.hour}시 ${form.minute}분`;
+
+  const inSt={width:"100%",padding:"8px 10px",borderRadius:8,border:"1px solid #ddd",fontSize:13,marginBottom:0,background:"#fafafa",boxSizing:"border-box"};
+  const selSt={...inSt,background:"#fafafa"};
+  const lbSt={fontSize:11,color:"#888",marginBottom:4,display:"block",fontWeight:600};
+
+  return(
+    <div style={{background:"#fff",border:"1px solid #e0e0e0",borderRadius:12,padding:"1rem 1.25rem"}}>
+      <h3 style={{fontSize:15,fontWeight:600,color:"#333",marginBottom:14}}>🆓 무료수업 안내문 생성</h3>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:20}}>
+        {/* 입력 폼 */}
+        <div style={{display:"flex",flexDirection:"column",gap:12}}>
+          {/* 기본 정보 */}
+          <div style={{background:"#FFFDF0",borderRadius:10,padding:"14px",border:"1px solid #FFE082"}}>
+            <p style={{fontSize:13,fontWeight:600,color:"#B45309",marginBottom:10}}>ℹ️ 학생 및 기본 정보</p>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8}}>
+              <label><span style={lbSt}>학생 성함</span><input style={inSt} value={form.studentName} onChange={e=>setF('studentName',e.target.value)} placeholder="학생 이름"/></label>
+              <label><span style={lbSt}>선생님 성함</span><input style={inSt} value={form.teacherName} onChange={e=>setF('teacherName',e.target.value)} placeholder="선생님 이름"/></label>
+              <label><span style={lbSt}>수업 과목</span>
+                <select style={selSt} value={form.subject} onChange={e=>setF('subject',e.target.value)}>
+                  {SUBJECTS.map(s=><option key={s}>{s}</option>)}
+                </select>
+              </label>
+            </div>
+          </div>
+
+          {/* 일정 */}
+          <div style={{background:"#FFFDF0",borderRadius:10,padding:"14px",border:"1px solid #FFE082"}}>
+            <p style={{fontSize:13,fontWeight:600,color:"#B45309",marginBottom:10}}>📅 수업 일정 설정</p>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8,marginBottom:8}}>
+              <label><span style={lbSt}>월</span><input style={inSt} type="number" min="1" max="12" value={form.month} onChange={e=>setF('month',e.target.value)}/></label>
+              <label><span style={lbSt}>일</span><input style={inSt} type="number" min="1" max="31" value={form.day} onChange={e=>setF('day',e.target.value)}/></label>
+              <label><span style={lbSt}>요일</span>
+                <select style={selSt} value={form.weekday} onChange={e=>setF('weekday',e.target.value)}>
+                  {WEEKDAYS.map(w=><option key={w}>{w}</option>)}
+                </select>
+              </label>
+            </div>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8}}>
+              <label><span style={lbSt}>오전/오후</span>
+                <select style={selSt} value={form.meridiem} onChange={e=>setF('meridiem',e.target.value)}>
+                  {MERIDIEMS.map(m=><option key={m}>{m}</option>)}
+                </select>
+              </label>
+              <label><span style={lbSt}>시 (1-12)</span><input style={inSt} type="number" min="1" max="12" value={form.hour} onChange={e=>setF('hour',e.target.value)}/></label>
+              <label><span style={lbSt}>분 (00-59)</span><input style={inSt} type="number" min="0" max="59" value={form.minute} onChange={e=>setF('minute',e.target.value)}/></label>
+            </div>
+          </div>
+
+          {/* 강의실 정보 */}
+          <div style={{background:"#FFFDF0",borderRadius:10,padding:"14px",border:"1px solid #FFE082"}}>
+            <p style={{fontSize:13,fontWeight:600,color:"#B45309",marginBottom:10}}>🎥 강의실 및 안내 정보</p>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:10}}>
+              <label><span style={lbSt}>아이디</span><input style={inSt} value={form.testId} onChange={e=>setF('testId',e.target.value)} placeholder="ID 입력"/></label>
+              <label><span style={lbSt}>비밀번호</span><input style={inSt} value={form.testPassword} onChange={e=>setF('testPassword',e.target.value)} placeholder="PW 입력"/></label>
+            </div>
+            <span style={lbSt}>수업 안내 이미지 (안내문 하단)</span>
+            <div onClick={()=>fileRef.current?.click()} style={{border:"2px dashed #ddd",borderRadius:8,padding:16,textAlign:"center",cursor:"pointer",background:"#fafafa",position:"relative"}}>
+              {form.guideImage?(
+                <div style={{position:"relative"}}>
+                  <img src={form.guideImage} alt="guide" style={{width:"100%",borderRadius:6,objectFit:"contain",maxHeight:200}}/>
+                  <button onClick={e=>{e.stopPropagation();setF('guideImage','');}} style={{position:"absolute",top:4,right:4,background:"rgba(255,255,255,0.9)",border:"none",borderRadius:"50%",width:24,height:24,cursor:"pointer",color:"#EF5350",fontWeight:700}}>×</button>
+                </div>
+              ):(
+                <div style={{color:"#aaa",fontSize:12}}>
+                  <div style={{fontSize:24,marginBottom:6}}>⬆</div>
+                  <p>수업 안내 이미지 업로드</p>
+                </div>
+              )}
+              <input ref={fileRef} type="file" accept="image/*" style={{display:"none"}} onChange={handleImg}/>
+            </div>
+          </div>
+
+          <button onClick={downloadJpg} style={{padding:"12px",borderRadius:10,background:"#F59E0B",color:"#fff",border:"none",cursor:"pointer",fontWeight:700,fontSize:14}}>
+            ⬇ JPG 저장
+          </button>
+        </div>
+
+        {/* 미리보기 */}
+        <div>
+          <p style={{fontSize:13,fontWeight:600,color:"#333",marginBottom:8}}>👁 미리보기</p>
+          <div style={{background:"#e5e7eb",borderRadius:16,padding:16,overflowY:"auto",maxHeight:700}}>
+            <div ref={previewRef} style={{background:"#fff",padding:"32px 28px",position:"relative",overflow:"hidden",minHeight:500}}>
+              {/* 상단 바 */}
+              <div style={{position:"absolute",top:0,left:0,width:"100%",height:6,background:"#F59E0B"}}/>
+
+              <div style={{marginTop:16,marginBottom:20,fontSize:13,color:"#1a1a1a",lineHeight:1.8}}>
+                <p style={{fontWeight:700,fontSize:15}}>
+                  안녕하세요.{" "}
+                  <span style={{color:"#B45309",fontSize:17}}>{form.studentName||"[학생이름]"}</span>{" "}
+                  학생,{" "}
+                  <span style={{color:"#B45309",fontSize:17}}>{form.teacherName||"[선생님성함]"}</span>{" "}
+                  코치입니다. 무료수업 확정 안내 드립니다.
+                </p>
+              </div>
+
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,padding:"14px 0",borderTop:"1px solid #FEF3C7",borderBottom:"1px solid #FEF3C7",marginBottom:16}}>
+                <div style={{display:"flex",flexDirection:"column",gap:6}}>
+                  <p style={{fontSize:12,fontWeight:700,color:"#B45309"}}>📅 날짜 : {fmtDate}</p>
+                  <p style={{fontSize:12,fontWeight:700,color:"#B45309"}}>🕐 시간 : {fmtTime}</p>
+                </div>
+                <div style={{display:"flex",flexDirection:"column",gap:6,paddingLeft:12,borderLeft:"1px solid #FEF3C7"}}>
+                  <p style={{fontSize:12,fontWeight:700,color:"#B45309"}}>👤 ID : <span style={{color:"#1565C0"}}>{form.testId||"미입력"}</span></p>
+                  <p style={{fontSize:12,fontWeight:700,color:"#B45309"}}>🔒 PW : <span style={{color:"#1565C0"}}>{form.testPassword||"미입력"}</span></p>
+                </div>
+              </div>
+
+              {form.guideImage?(
+                <img src={form.guideImage} alt="guide" style={{width:"100%",borderRadius:8,marginBottom:16}}/>
+              ):(
+                <div style={{border:"2px dashed #FEF3C7",borderRadius:8,padding:"40px 0",textAlign:"center",color:"#FCD34D",marginBottom:16,fontSize:12}}>수업 안내 이미지를 업로드해주세요</div>
+              )}
+
+              <div style={{textAlign:"center",paddingTop:12}}>
+                <p style={{fontSize:14,fontWeight:700,color:"#1a1a1a"}}>{form.teacherName?`${form.teacherName} 코치`:"코치"} 드림</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
