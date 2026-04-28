@@ -332,7 +332,16 @@ function NoticeGen(){
     "방문": {"초등":64000,"중등":74000,"고등1,2":84000,"고등3":94000},
   };
   const [form,setForm]=useState({name:"",grade:"",schoolLevel:"초등",type:"화상",subject:"영어",times:"2",duration:"60",days:"매주 화요일 오후 4시, 매주 목요일 오후 4시",firstDate:"",book:"",publisher:"",studentId:"",fee:"",planning:false,teacherPhone:"010-1234-5678",managerPhone:"010-2800-1465"});
-  const [preview,setPreview]=useState(false);
+  const defaultMessages = [
+    {title:"수업은 정해진 요일과 시간에 진행됩니다.",desc:"원활한 학습 진행과 수업 시간을 최대한 활용하기 위해 정해진 수업 시간을 준수하고 있습니다. 학부모님께서는 자녀가 충실하게 수업을 준비할 수 있도록 지도 부탁드립니다."},
+    {title:"모든 수업은 선불이며, 4주차 수업 기준으로 진행됩니다.",desc:"주 2회 수업일 경우 월 8회 수업을 기본으로 하며, 월 5주차가 있는 경우는 해당 교사와 협의 후 휴강기간으로 대체 될 수 있습니다. 따로 협의가 없는 경우, 다음 회차 수업이 새롭게 수업이 시작되는 날이므로 수업 전까지 교육비 납부가 될 수 있도록 부탁드립니다."},
+    {title:"법정 공휴일에는 수업이 진행되지 않습니다.",desc:"단, 사전에 미리 약속된 수업일은 공휴일에도 진행되며, 공휴일 휴강으로 인해 한달 수업 횟수가 미달될 경우에는 추가로 보강 수업을 진행합니다."},
+    {title:"수업 변경을 원하실 경우 최소 하루 전날 말씀해주셔야합니다.",desc:"사전 논의 없이 당일 결석하는 경우 무단결석으로 처리되어 보강수업 진행이 어려우며, 1회 수업이 완료한 것으로 간주되니 불이익이 없도록 유의해 주시기 바랍니다. 단, 모든 경우에 보강의 보강수업은 없습니다."},
+    {title:"수업 횟수는 반드시 맞춰드립니다.",desc:"학생 및 선생님의 개인 사정으로 수업이 이루어지지 않을 경우, 남은 수업 횟수를 맞추기 위한 보강 수업이 진행되며, 모든 일정은 학부모님과 학생, 선생님 간의 협의를 통해 조정됩니다."},
+    {title:"남은 회차 수업은 모두 환불 가능합니다.",desc:"수업을 중단하고자 할 경우 최소 2주전에 미리 담당 선생님께 알려주세요. 남은 수업 회차는 모두 환불이 가능합니다."},
+  ];
+  const [messages, setMessages] = useState(defaultMessages);
+  const [editingMsg, setEditingMsg] = useState(null);
   const p1=useRef(null),p2=useRef(null),p3=useRef(null);
   function set(k,v){setForm(f=>({...f,[k]:v}));}
   function calcFee(){
@@ -416,6 +425,38 @@ function NoticeGen(){
             <label style={{...lbSt,gridColumn:"1/-1"}}><span>학생 아이디</span><input value={form.studentId} onChange={e=>set("studentId",e.target.value)} placeholder="예) student123"/></label>
             <label style={lbSt}><span>수업 선생님 연락처</span><input value={form.teacherPhone} onChange={e=>set("teacherPhone",e.target.value)}/></label>
             <label style={lbSt}><span>담당 매니저 연락처</span><input value={form.managerPhone} onChange={e=>set("managerPhone",e.target.value)}/></label>
+
+            {/* 학부모님께 드리는 말씀 편집 */}
+            <div style={{gridColumn:"1/-1",marginTop:8}}>
+              <p style={{fontSize:13,fontWeight:600,color:"#333",marginBottom:10}}>📝 학부모님께 드리는 말씀 수정</p>
+              <div style={{display:"flex",flexDirection:"column",gap:8}}>
+                {messages.map((msg,i)=>(
+                  <div key={i} style={{border:"1px solid #eee",borderRadius:8,overflow:"hidden"}}>
+                    {editingMsg===i ? (
+                      <div style={{padding:"10px",background:"#f9f9f9"}}>
+                        <p style={{fontSize:11,color:"#555",marginBottom:4}}>제목</p>
+                        <input value={msg.title} onChange={e=>{const next=[...messages];next[i]={...next[i],title:e.target.value};setMessages(next);}} style={{marginBottom:6}}/>
+                        <p style={{fontSize:11,color:"#555",marginBottom:4}}>내용</p>
+                        <textarea value={msg.desc} onChange={e=>{const next=[...messages];next[i]={...next[i],desc:e.target.value};setMessages(next);}} rows={3} style={{resize:"vertical",marginBottom:6}}/>
+                        <div style={{display:"flex",gap:6}}>
+                          <button onClick={()=>setEditingMsg(null)} style={{...sBt,flex:1,padding:"6px"}}>완료</button>
+                          <button onClick={()=>{const next=[...messages];next[i]=defaultMessages[i];setMessages(next);setEditingMsg(null);}} style={{...cBt,flex:1,padding:"6px",fontSize:11}}>초기화</button>
+                        </div>
+                      </div>
+                    ):(
+                      <div style={{display:"flex",alignItems:"flex-start",gap:10,padding:"10px 12px",background:"#fff"}} onClick={()=>setEditingMsg(i)}>
+                        <div style={{width:22,height:22,borderRadius:"50%",background:"#E8EAF6",display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,fontWeight:700,color:"#3949AB",flexShrink:0}}>{i+1}</div>
+                        <div style={{flex:1,minWidth:0}}>
+                          <p style={{fontSize:12,fontWeight:600,color:"#333",marginBottom:2}}>{msg.title}</p>
+                          <p style={{fontSize:11,color:"#888",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{msg.desc}</p>
+                        </div>
+                        <span style={{fontSize:11,color:"#5C6BC0",flexShrink:0,cursor:"pointer"}}>✏️ 수정</span>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
           </div>
           <button onClick={()=>setPreview(true)} style={{...sBt,marginTop:8,padding:"10px"}}>미리보기 →</button>
         </div>
@@ -476,7 +517,53 @@ function NoticeGen(){
               <div style={{marginTop:14,padding:"12px 16px",background:"#f9f9f9",borderRadius:8}}>
                 <p style={{fontSize:12,fontWeight:600,color:"#1a1a1a",marginBottom:6}}>● 로그인 안내 및 비밀번호 발급</p>
                 <p style={{fontSize:11,color:"#555",marginBottom:4}}>1) 통합 회원전환을 하시면 위에 발급해드린 아이디는 <strong>사용이 불가</strong>하오니, 기존 아이디로 로그인하시길 추천드립니다.</p>
-                <p style={{fontSize:11,color:"#555"}}>2) 비밀번호를 모르시는 경우, 비밀번호 찾기로 진행해 주세요</p>
+                <p style={{fontSize:11,color:"#555",marginBottom:12}}>2) 비밀번호를 모르시는 경우, 비밀번호 찾기로 진행해 주세요</p>
+
+                {/* 비밀번호 찾기 안내 */}
+                <p style={{fontSize:12,fontWeight:600,color:"#1a1a1a",marginBottom:8}}>● 비밀번호 찾기</p>
+                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
+                  {/* 왼쪽: 로그인 화면 */}
+                  <div style={{border:"1px solid #ddd",borderRadius:8,overflow:"hidden",background:"#fff"}}>
+                    <div style={{background:"#1565C0",padding:"6px 10px",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+                      <span style={{fontSize:10,color:"#fff",fontWeight:600}}>상상코칭 로그인</span>
+                      <div style={{background:"#D32F2F",color:"#fff",fontSize:9,padding:"2px 6px",borderRadius:3,fontWeight:700}}>① 로그인</div>
+                    </div>
+                    <div style={{padding:"10px",fontSize:10,color:"#333"}}>
+                      <div style={{border:"1px solid #ddd",borderRadius:6,padding:"8px",marginBottom:6,background:"#fafafa"}}>
+                        <p style={{color:"#888",fontSize:9,marginBottom:4}}>로그인 해주세요!</p>
+                        <div style={{display:"flex",gap:6,marginBottom:6,fontSize:9}}>
+                          <label style={{display:"flex",alignItems:"center",gap:2}}><input type="radio" defaultChecked readOnly style={{width:"auto",padding:0,marginBottom:0}}/> 회원</label>
+                          <label style={{display:"flex",alignItems:"center",gap:2}}><input type="radio" readOnly style={{width:"auto",padding:0,marginBottom:0}}/> 선생님</label>
+                        </div>
+                        <div style={{background:"#eee",height:18,borderRadius:3,marginBottom:4}}/>
+                        <div style={{background:"#eee",height:18,borderRadius:3,marginBottom:8}}/>
+                        <div style={{background:"#1565C0",height:22,borderRadius:4,display:"flex",alignItems:"center",justifyContent:"center"}}><span style={{color:"#fff",fontSize:9,fontWeight:600}}>로그인</span></div>
+                      </div>
+                      <div style={{border:"2px solid #D32F2F",borderRadius:4,padding:"4px 8px",textAlign:"center",fontSize:9,color:"#D32F2F",fontWeight:600}}>② 아이디/비밀번호 찾기</div>
+                    </div>
+                  </div>
+                  {/* 오른쪽: 비밀번호 찾기 */}
+                  <div style={{border:"1px solid #ddd",borderRadius:8,overflow:"hidden",background:"#fff"}}>
+                    <div style={{background:"#1565C0",padding:"6px 10px",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+                      <span style={{fontSize:10,color:"#fff",fontWeight:600}}>비밀번호 찾기</span>
+                      <div style={{background:"#D32F2F",color:"#fff",fontSize:9,padding:"2px 6px",borderRadius:3,fontWeight:700}}>③ 비밀번호 찾기</div>
+                    </div>
+                    <div style={{padding:"10px",fontSize:9,color:"#555",lineHeight:1.6}}>
+                      <div style={{background:"#FFF3E0",border:"1px solid #FFB74D",borderRadius:4,padding:"6px",marginBottom:6,fontSize:9,color:"#E65100"}}>
+                        <p>▲ 가입 시 입력하신 아이디와 학생휴대전화번호 또는 법정대리인 휴대 일치해야 임시비밀번호가 발송됩니다.</p>
+                      </div>
+                      <p style={{marginBottom:4,fontWeight:600,color:"#333"}}>아이디</p>
+                      <div style={{border:"2px solid #D32F2F",borderRadius:4,padding:"4px 8px",marginBottom:6,fontSize:9,color:"#aaa"}}>④ 아이디 또는 이메일 아이디</div>
+                      <p style={{marginBottom:4,fontWeight:600,color:"#333"}}>휴대폰 번호(본인확인 방법 선택)</p>
+                      <div style={{display:"flex",gap:4,marginBottom:4}}>
+                        <label style={{display:"flex",alignItems:"center",gap:2,fontSize:9}}><input type="radio" readOnly style={{width:"auto",padding:0,marginBottom:0}}/> 학생</label>
+                        <label style={{display:"flex",alignItems:"center",gap:2,fontSize:9,fontWeight:600,color:"#1565C0"}}><input type="radio" defaultChecked readOnly style={{width:"auto",padding:0,marginBottom:0}}/> ⑤ 법정대리인</label>
+                      </div>
+                      <div style={{border:"2px solid #D32F2F",borderRadius:4,padding:"4px 8px",marginBottom:6,fontSize:9,color:"#aaa"}}>⑥ 휴대폰 번호를 입력하세요</div>
+                      <div style={{background:"#1a1a1a",borderRadius:4,padding:"6px",textAlign:"center"}}><span style={{color:"#fff",fontSize:9,fontWeight:600}}>⑦ 비밀번호 찾기</span></div>
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
@@ -484,14 +571,7 @@ function NoticeGen(){
           <div ref={p2} style={{background:"#fff",padding:"40px 36px",fontFamily:"'Malgun Gothic','Apple SD Gothic Neo',sans-serif",maxWidth:700,margin:"24px auto 0",border:"1px solid #ddd",borderRadius:8}}>
             <div style={{width:"100%",height:8,background:"linear-gradient(90deg,#1565C0,#42A5F5)",borderRadius:"4px 4px 0 0",marginBottom:32}}/>
             <div style={{textAlign:"center",marginBottom:32}}><h1 style={{fontSize:26,fontWeight:700,color:"#1a1a1a",marginBottom:6}}>학부모님께 드리는 말씀</h1><p style={{fontSize:13,color:"#888"}}>원활한 수업을 위해 꼭 확인 부탁드립니다.</p></div>
-            {[
-              {n:1,title:"수업은 정해진 요일과 시간에 진행됩니다.",desc:"원활한 학습 진행과 수업 시간을 최대한 활용하기 위해 정해진 수업 시간을 준수하고 있습니다. 학부모님께서는 자녀가 충실하게 수업을 준비할 수 있도록 지도 부탁드립니다."},
-              {n:2,title:"모든 수업은 선불이며, 4주차 수업 기준으로 진행됩니다.",desc:"주 2회 수업일 경우 월 8회 수업을 기본으로 하며, 월 5주차가 있는 경우는 해당 교사와 협의 후 휴강기간으로 대체 될 수 있습니다. 따로 협의가 없는 경우, 다음 회차 수업이 새롭게 수업이 시작되는 날이므로 수업 전까지 교육비 납부가 될 수 있도록 부탁드립니다."},
-              {n:3,title:"법정 공휴일에는 수업이 진행되지 않습니다.",desc:"단, 사전에 미리 약속된 수업일은 공휴일에도 진행되며, 공휴일 휴강으로 인해 한달 수업 횟수가 미달될 경우에는 추가로 보강 수업을 진행합니다."},
-              {n:4,title:"수업 변경을 원하실 경우 최소 하루 전날 말씀해주셔야합니다.",desc:"사전 논의 없이 당일 결석하는 경우 무단결석으로 처리되어 보강수업 진행이 어려우며, 1회 수업이 완료한 것으로 간주되니 불이익이 없도록 유의해 주시기 바랍니다. 단, 모든 경우에 보강의 보강수업은 없습니다."},
-              {n:5,title:"수업 횟수는 반드시 맞춰드립니다.",desc:"학생 및 선생님의 개인 사정으로 수업이 이루어지지 않을 경우, 남은 수업 횟수를 맞추기 위한 보강 수업이 진행되며, 모든 일정은 학부모님과 학생, 선생님 간의 협의를 통해 조정됩니다."},
-              {n:6,title:"남은 회차 수업은 모두 환불 가능합니다.",desc:"수업을 중단하고자 할 경우 최소 2주전에 미리 담당 선생님께 알려주세요. 남은 수업 회차는 모두 환불이 가능합니다."},
-            ].map(item=>(
+            {messages.map((item,i)=>(
               <div key={item.n} style={{display:"flex",gap:16,marginBottom:20,paddingBottom:20,borderBottom:"1px solid #f0f0f0"}}>
                 <div style={{width:28,height:28,borderRadius:"50%",background:"#1565C0",color:"#fff",display:"flex",alignItems:"center",justifyContent:"center",fontSize:13,fontWeight:700,flexShrink:0,marginTop:2}}>{item.n}</div>
                 <div><p style={{fontSize:14,fontWeight:700,color:"#1a1a1a",marginBottom:6}}>{item.title}</p><p style={{fontSize:12,color:"#555",lineHeight:1.7}}>{item.desc}</p></div>
