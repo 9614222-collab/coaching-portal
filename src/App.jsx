@@ -331,18 +331,15 @@ function NoticeGen(){
     "화상": {"초등":59000,"중등":67000,"고등1,2":77000,"고등3":82000},
     "방문": {"초등":64000,"중등":74000,"고등1,2":84000,"고등3":94000},
   };
-  const [form,setForm]=useState({name:"",schoolLevel:"초등",type:"화상",subject:"영어",times:"2",duration:"60",days:"매주 화요일 오후 4시, 매주 목요일 오후 4시",firstDate:"",book:"",publisher:"",studentId:"",fee:"",teacherPhone:"010-1234-5678",managerPhone:"010-2800-1465"});
+  const [form,setForm]=useState({name:"",grade:"",schoolLevel:"초등",type:"화상",subject:"영어",times:"2",duration:"60",days:"매주 화요일 오후 4시, 매주 목요일 오후 4시",firstDate:"",book:"",publisher:"",studentId:"",fee:"",planning:false,teacherPhone:"010-1234-5678",managerPhone:"010-2800-1465"});
   const [preview,setPreview]=useState(false);
   const p1=useRef(null),p2=useRef(null),p3=useRef(null);
   function set(k,v){setForm(f=>({...f,[k]:v}));}
   function calcFee(){
     const t=parseInt(form.times)||0;
     const base=FEE_TABLE[form.type]?.[form.schoolLevel]||0;
-    return(base*t*4).toLocaleString("ko-KR");
-  }
-  function getGradeLabel(){
-    if(form.type==="화상") return `화상 수업 (${form.schoolLevel})`;
-    return `방문 수업 (${form.schoolLevel})`;
+    const planning=form.planning?30000:0;
+    return(base*t+planning).toLocaleString("ko-KR");
   }
   async function downloadImg(){
     const pages=[{ref:p1,name:"1페이지_수업안내"},{ref:p2,name:"2페이지_학부모말씀"},{ref:p3,name:"3페이지_결제안내"}];
@@ -386,16 +383,25 @@ function NoticeGen(){
             <label style={lbSt}>
               <span>주 수업 횟수 (타임)</span>
               <select value={form.times} onChange={e=>set("times",e.target.value)} style={{padding:"8px 10px",borderRadius:8,border:"1px solid #ddd",fontSize:14,marginBottom:0,background:"#fafafa"}}>
-                {[2,3,4,5,6,7,8].map(n=><option key={n} value={String(n)}>{n}타임</option>)}
+                {[1,2,3,4,5,6,7,8].map(n=><option key={n} value={String(n)}>{n}타임</option>)}
               </select>
             </label>
             <label style={lbSt}><span>1회 수업 시간(분)</span><input value={form.duration} onChange={e=>set("duration",e.target.value)} placeholder="예) 60"/></label>
-            {/* 자동계산 수업료 표시 */}
+            {/* 플래닝 옵션 */}
+            <div style={{gridColumn:"1/-1",display:"flex",alignItems:"center",gap:10,padding:"10px 14px",background:"#F3E5F5",borderRadius:8,border:"1px solid #CE93D8",cursor:"pointer"}} onClick={()=>set("planning",!form.planning)}>
+              <div style={{width:20,height:20,borderRadius:4,border:`2px solid ${form.planning?"#7B1FA2":"#CE93D8"}`,background:form.planning?"#7B1FA2":"transparent",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
+                {form.planning&&<span style={{color:"#fff",fontSize:12}}>✓</span>}
+              </div>
+              <div style={{flex:1}}>
+                <span style={{fontSize:13,fontWeight:600,color:"#4A148C"}}>플래닝 코칭 추가</span>
+                <span style={{fontSize:12,color:"#7B1FA2",marginLeft:8}}>+ 30,000원</span>
+              </div>
+            </div>
             <div style={{gridColumn:"1/-1",background:"#f0f7ff",borderRadius:10,padding:"12px 16px",border:"1px solid #BBDEFB",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
               <div>
                 <p style={{fontSize:11,color:"#1565C0",fontWeight:600,marginBottom:2}}>📊 예상 월 수업료 (자동계산)</p>
-                <p style={{fontSize:11,color:"#888"}}>{form.type} · {form.schoolLevel} · 주 {form.times}회 · 4주 기준</p>
-                <p style={{fontSize:11,color:"#888"}}>1회 단가: {(FEE_TABLE[form.type]?.[form.schoolLevel]||0).toLocaleString("ko-KR")}원 × {form.times}회 × 4주</p>
+                <p style={{fontSize:11,color:"#888"}}>{form.type} · {form.schoolLevel} · {form.times}타임{form.planning?" + 플래닝":""} 기준</p>
+                <p style={{fontSize:11,color:"#888"}}>단가: {(FEE_TABLE[form.type]?.[form.schoolLevel]||0).toLocaleString("ko-KR")}원 × {form.times}타임{form.planning?" + 플래닝 30,000원":""}</p>
               </div>
               <div style={{textAlign:"right"}}>
                 <p style={{fontSize:24,fontWeight:700,color:"#1565C0"}}>{calcFee()}원</p>
