@@ -22,7 +22,7 @@ const TASKS = [
   {id:"t2",title:"신입코치 영상 2",sub:"V-CAM",url:"https://vcampus.educo.co.kr/login",color:"#5C6BC0"},
   {id:"t3",title:"한국코칭심리협회 TLC 3급",sub:"IKCPA",url:"http://www.ikcpa.or.kr/",color:"#26A69A"},
   {id:"t4",title:"인생코칭",sub:"",url:"",color:"#EF5350"},
-  {id:"t5",title:"한국코칭심리협회 플래닝코칭",sub:"IKCPA",url:"http://www.ikcpa.or.kr/",color:"#26A69A"},
+
   {id:"t6",title:"퍼스트코칭",sub:"코칭존 사이트에서 신청",url:"",color:"#F57C00"},
   {id:"t7",title:"직무컨설팅",sub:"업무 1:1 학습 · 코칭존 사이트",url:"",color:"#F57C00"},
   {id:"t8",title:"타겟프로필 만들기",sub:"",url:"",color:"#7B1FA2"},
