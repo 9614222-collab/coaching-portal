@@ -855,8 +855,8 @@ export default function App(){
         </div>
 
         <div className="tabs">
-          {[["calendar","📅 일정"],["resource","📂 자료"],["settle","💰 지원금"],["notice","📌 공지"],["notice_gen","📄 안내문"],["free_lesson","🆓 무료수업"],["exam_analysis","📊 시험분석"],...(isAdmin?[["progress","👥 현황"]]:[])]
-            .map(([k,l])=><button key={k} className={`tab-btn${tab===k?" active":""}`} onClick={()=>setTab(k)}>{l}</button>)}
+          {[["calendar","📅"],["resource","📂"],["settle","💰"],["notice","📌"],["notice_gen","📄"],["free_lesson","🆓"],["exam_analysis","📊"],...(isAdmin?[["progress","👥"]]:[])]
+            .map(([k,l])=><button key={k} className={`tab-btn${tab===k?" active":""}`} onClick={()=>setTab(k)} title={k}>{l}</button>)}
         </div>
 
         {tab==="calendar"&&(
