@@ -108,6 +108,271 @@ function Modal({title,onClose,children}){
   );
 }
 
+function ExamAnalysis(){
+  const GEMINI_API_KEY = "AIzaSyB_EoXucejx_vg59VzHQdFZxlaEtX7CVl8";
+  const [info,setInfo]=useState({studentName:"",grade:"",subject:"",examRange:"",unitName:"",schoolName:"",score:"",wrongQuestions:"",examPaperBase64s:[]});
+  const [analysis,setAnalysis]=useState(null);
+  const [loading,setLoading]=useState(false);
+  const [error,setError]=useState(null);
+  const [isEditing,setIsEditing]=useState(false);
+  const [editCurriculum,setEditCurriculum]=useState("");
+  const [editComments,setEditComments]=useState("");
+  const reportRef=useRef(null);
+  const fileRef=useRef(null);
+
+  function si(k,v){setInfo(f=>({...f,[k]:v}));}
+
+  function handleFile(e){
+    const files=Array.from(e.target.files||[]);
+    if(info.examPaperBase64s.length+files.length>20){setError("최대 20개까지 업로드 가능합니다.");return;}
+    files.forEach(file=>{
+      const reader=new FileReader();
+      reader.onloadend=()=>setInfo(p=>({...p,examPaperBase64s:[...p.examPaperBase64s,reader.result]}));
+      reader.readAsDataURL(file);
+    });
+  }
+
+  async function analyze(){
+    setLoading(true);setError(null);
+    try{
+      const prompt=`당신은 전문 교육 컨설턴트입니다. 학생의 시험 정보를 분석하여 상세한 보고서를 JSON으로 작성하세요.
+학생정보: ${info.studentName} / ${info.grade} / ${info.schoolName}
+과목: ${info.subject} / 성적: ${info.score}점
+시험범위: ${info.examRange} / 단원명: ${info.unitName}
+틀린문제: ${info.wrongQuestions}
+
+다음 JSON 형식으로만 응답하세요:
+{
+  "examLevel": "시험 난이도 분석",
+  "trends": "출제 경향 분석",
+  "difficultyDistribution": {"high": 30, "medium": 50, "low": 20},
+  "questionAnalysis": [{"number":"1","topic":"개념명","difficulty":"상","isCorrect":true,"comment":"코멘트"}],
+  "strengths": "강점 분석",
+  "weaknesses": "약점 분석",
+  "curriculum": "커리큘럼 계획",
+  "coachComments": "코치 코멘트"
+}`;
+
+      const parts=[{text:prompt}];
+      info.examPaperBase64s.forEach(b64=>{
+        parts.push({inline_data:{mime_type:"image/jpeg",data:b64.split(",")[1]}});
+      });
+
+      const res=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`,{
+        method:"POST",
+        headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({contents:[{parts}]})
+      });
+      const data=await res.json();
+      const text=data.candidates?.[0]?.content?.parts?.[0]?.text||"{}";
+      const clean=text.replace(/```json|```/g,"").trim();
+      const result=JSON.parse(clean);
+      setAnalysis(result);
+      setEditCurriculum(result.curriculum||"");
+      setEditComments(result.coachComments||"");
+    }catch(e){setError("분석 중 오류가 발생했습니다. 다시 시도해 주세요.");}
+    finally{setLoading(false);}
+  }
+
+  async function downloadImg(){
+    if(!reportRef.current)return;
+    try{
+      const {default:h2c}=await import("https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.esm.min.js");
+      const canvas=await h2c(reportRef.current,{scale:2,useCORS:true,backgroundColor:"#ffffff"});
+      const a=document.createElement("a");a.href=canvas.toDataURL("image/png");
+      a.download=`${info.studentName||"학생"}_시험분석보고서.png`;a.click();
+    }catch(e){alert("저장 중 오류가 발생했습니다.");}
+  }
+
+  const iSt={width:"100%",padding:"8px 10px",borderRadius:8,border:"1px solid #ddd",fontSize:13,marginBottom:8,background:"#fafafa"};
+  const lb={fontSize:11,color:"#555",fontWeight:600,marginBottom:4,display:"block"};
+  const COLORS=["#ef4444","#f59e0b","#10b981"];
+
+  return(
+    <div className="card">
+      <h3 style={{fontSize:15,fontWeight:600,color:"#333",marginBottom:14}}>📊 시험분석 보고서</h3>
+      <div style={{display:"grid",gridTemplateColumns:"380px 1fr",gap:20,alignItems:"start"}}>
+        {/* 입력 폼 */}
+        <div style={{background:"#f8fafc",borderRadius:12,padding:20,border:"1px solid #e2e8f0"}}>
+          <p style={{fontSize:13,fontWeight:600,color:"#4f46e5",marginBottom:14}}>📋 회원 정보 입력</p>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
+            <label><span style={lb}>이름</span><input style={iSt} value={info.studentName} onChange={e=>si("studentName",e.target.value)} placeholder="홍길동"/></label>
+            <label><span style={lb}>학년</span><input style={iSt} value={info.grade} onChange={e=>si("grade",e.target.value)} placeholder="중3"/></label>
+            <label><span style={lb}>과목</span><input style={iSt} value={info.subject} onChange={e=>si("subject",e.target.value)} placeholder="수학"/></label>
+            <label><span style={lb}>성적</span><input style={iSt} value={info.score} onChange={e=>si("score",e.target.value)} placeholder="85"/></label>
+          </div>
+          <label><span style={lb}>학교 이름</span><input style={iSt} value={info.schoolName} onChange={e=>si("schoolName",e.target.value)} placeholder="대치중학교"/></label>
+          <label><span style={lb}>시험 범위</span><input style={iSt} value={info.examRange} onChange={e=>si("examRange",e.target.value)} placeholder="1단원 ~ 3단원"/></label>
+          <label><span style={lb}>단원명</span><input style={iSt} value={info.unitName} onChange={e=>si("unitName",e.target.value)} placeholder="다항식의 연산, 인수분해"/></label>
+          <label><span style={lb}>틀린 문제 번호</span><input style={iSt} value={info.wrongQuestions} onChange={e=>si("wrongQuestions",e.target.value)} placeholder="5, 12, 18, 20"/></label>
+
+          <span style={lb}>시험지 이미지 (최대 20개)</span>
+          <div onClick={()=>fileRef.current?.click()} style={{border:"2px dashed #c7d2fe",borderRadius:8,padding:12,textAlign:"center",cursor:"pointer",background:"#eef2ff",marginBottom:8}}>
+            <p style={{fontSize:12,color:"#6366f1"}}>⬆ 시험지 이미지 추가 ({info.examPaperBase64s.length}/20)</p>
+            <input ref={fileRef} type="file" accept="image/*" multiple style={{display:"none"}} onChange={handleFile}/>
+          </div>
+          {info.examPaperBase64s.length>0&&<div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:4,marginBottom:8}}>
+            {info.examPaperBase64s.map((img,i)=>(
+              <div key={i} style={{position:"relative",aspectRatio:"1",borderRadius:6,overflow:"hidden",border:"1px solid #ddd"}}>
+                <img src={img} alt={`시험지${i+1}`} style={{width:"100%",height:"100%",objectFit:"cover"}}/>
+                <button onClick={()=>setInfo(p=>({...p,examPaperBase64s:p.examPaperBase64s.filter((_,j)=>j!==i)}))} style={{position:"absolute",top:2,right:2,background:"rgba(0,0,0,0.5)",color:"#fff",border:"none",borderRadius:"50%",width:16,height:16,fontSize:10,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"}}>×</button>
+              </div>
+            ))}
+          </div>}
+
+          {error&&<p style={{fontSize:12,color:"#ef4444",marginBottom:8,padding:"8px 10px",background:"#fff1f2",borderRadius:6}}>{error}</p>}
+
+          <button onClick={analyze} disabled={loading||!info.studentName||!info.subject} style={{width:"100%",padding:"12px",borderRadius:10,background:loading?"#c7d2fe":"#4f46e5",color:"#fff",border:"none",cursor:loading?"not-allowed":"pointer",fontWeight:700,fontSize:14,display:"flex",alignItems:"center",justifyContent:"center",gap:8}}>
+            {loading?<><div style={{width:16,height:16,border:"2px solid #fff",borderTopColor:"transparent",borderRadius:"50%",animation:"spin 0.8s linear infinite"}}/> 분석 중...</>:"📊 분석 리포트 생성"}
+          </button>
+          <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
+        </div>
+
+        {/* 미리보기 */}
+        <div>
+          {!analysis&&!loading&&<div style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",height:400,color:"#aaa",fontSize:14}}>
+            <div style={{fontSize:48,marginBottom:12}}>📄</div>
+            <p>정보를 입력하고 분석을 시작하세요.</p>
+          </div>}
+
+          {loading&&<div style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",height:400,color:"#6366f1",fontSize:14,gap:16}}>
+            <div style={{width:40,height:40,border:"4px solid #c7d2fe",borderTopColor:"#4f46e5",borderRadius:"50%",animation:"spin 0.8s linear infinite"}}/>
+            <p>전문가의 분석이 진행 중입니다...</p>
+          </div>}
+
+          {analysis&&<div>
+            <div style={{display:"flex",gap:8,marginBottom:12,justifyContent:"flex-end"}}>
+              <button onClick={()=>setIsEditing(!isEditing)} style={{padding:"7px 14px",borderRadius:8,background:isEditing?"#059669":"#f5f5f5",color:isEditing?"#fff":"#555",border:"1px solid #ddd",cursor:"pointer",fontSize:12,fontWeight:600}}>
+                {isEditing?"✓ 수정 완료":"✏️ 내용 수정하기"}
+              </button>
+              <button onClick={downloadImg} disabled={isEditing} style={{padding:"7px 14px",borderRadius:8,background:"#4f46e5",color:"#fff",border:"none",cursor:"pointer",fontSize:12,fontWeight:600,opacity:isEditing?0.5:1}}>
+                ⬇ 이미지 저장
+              </button>
+            </div>
+
+            <div style={{background:"#e5e7eb",borderRadius:16,padding:16,overflowY:"auto",maxHeight:700}}>
+              <div ref={reportRef} style={{background:"#fff",fontFamily:"'Malgun Gothic',sans-serif"}}>
+                {/* 1페이지 */}
+                <div style={{width:"100%",padding:"40px 36px",boxSizing:"border-box",position:"relative",minHeight:600}}>
+                  <div style={{height:4,background:"#4f46e5",marginBottom:24}}/>
+                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-end",marginBottom:24,paddingBottom:16,borderBottom:"3px solid #4f46e5"}}>
+                    <div>
+                      <h1 style={{fontSize:28,fontWeight:700,color:"#312e81",marginBottom:4}}>시험분석 보고서</h1>
+                      <span style={{background:"#4f46e5",color:"#fff",fontSize:10,padding:"2px 8px",borderRadius:4,fontWeight:700}}>Analysis Report · PAGE 1/2</span>
+                    </div>
+                    <p style={{fontSize:11,color:"#94a3b8"}}>발행일: {new Date().toLocaleDateString()}</p>
+                  </div>
+
+                  {/* 학생 정보 */}
+                  <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,background:"#f8fafc",padding:20,borderRadius:12,marginBottom:20,border:"1px solid #e2e8f0"}}>
+                    {[["👤 이름/학년",`${info.studentName} (${info.grade})`],["📚 과목/성적",`${info.subject} (${info.score}점)`],["🏫 학교",info.schoolName],["📋 시험범위",info.examRange]].map(([l,v])=>(
+                      <div key={l} style={{display:"flex",gap:10,alignItems:"center"}}>
+                        <div style={{background:"#e0e7ff",padding:"6px 8px",borderRadius:8,fontSize:14}}>{l.split(" ")[0]}</div>
+                        <div>
+                          <p style={{fontSize:9,color:"#94a3b8",fontWeight:700,marginBottom:2}}>{l.split(" ").slice(1).join(" ")}</p>
+                          <p style={{fontSize:13,fontWeight:700,color:"#1e293b"}}>{v}</p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* 난이도 분포 + 출제 경향 */}
+                  <div style={{display:"grid",gridTemplateColumns:"1fr 2fr",gap:16,marginBottom:20}}>
+                    <div>
+                      <p style={{fontSize:13,fontWeight:700,color:"#312e81",marginBottom:10}}>📊 난이도 분포</p>
+                      <div style={{display:"flex",flexDirection:"column",gap:6}}>
+                        {[["상",analysis.difficultyDistribution?.high||0,"#ef4444"],["중",analysis.difficultyDistribution?.medium||0,"#f59e0b"],["하",analysis.difficultyDistribution?.low||0,"#10b981"]].map(([l,v,c])=>(
+                          <div key={l} style={{display:"flex",alignItems:"center",gap:8}}>
+                            <span style={{fontSize:11,fontWeight:700,color:c,width:16}}>{l}</span>
+                            <div style={{flex:1,background:"#f1f5f9",borderRadius:20,height:10}}>
+                              <div style={{width:`${v}%`,height:"100%",background:c,borderRadius:20}}/>
+                            </div>
+                            <span style={{fontSize:11,color:"#64748b",width:30}}>{v}%</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                    <div>
+                      <p style={{fontSize:13,fontWeight:700,color:"#312e81",marginBottom:10}}>📝 출제 경향 분석</p>
+                      <div style={{background:"#f8fafc",padding:14,borderRadius:10,border:"1px solid #e2e8f0",fontSize:11,color:"#475569",lineHeight:1.7,whiteSpace:"pre-wrap"}}>{analysis.trends}</div>
+                    </div>
+                  </div>
+
+                  {/* 문항 분석 */}
+                  <p style={{fontSize:13,fontWeight:700,color:"#312e81",marginBottom:10}}>✅ 문항별 분석</p>
+                  <div style={{border:"1px solid #e2e8f0",borderRadius:10,overflow:"hidden"}}>
+                    <table style={{width:"100%",borderCollapse:"collapse",fontSize:11}}>
+                      <thead>
+                        <tr style={{background:"#f8fafc",borderBottom:"1px solid #e2e8f0"}}>
+                          {["No","주요 개념","난이도","결과","코멘트"].map(h=><th key={h} style={{padding:"8px 10px",textAlign:"left",fontWeight:700,color:"#64748b",fontSize:10}}>{h}</th>)}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {analysis.questionAnalysis.map((q,i)=>(
+                          <tr key={i} style={{borderBottom:"1px solid #f1f5f9"}}>
+                            <td style={{padding:"6px 10px",fontWeight:700,color:"#4f46e5"}}>{q.number}</td>
+                            <td style={{padding:"6px 10px",color:"#1e293b",fontWeight:500}}>{q.topic}</td>
+                            <td style={{padding:"6px 10px"}}>
+                              <span style={{padding:"2px 6px",borderRadius:4,fontSize:10,fontWeight:700,background:q.difficulty==="상"?"#fee2e2":q.difficulty==="중"?"#fef3c7":"#d1fae5",color:q.difficulty==="상"?"#b91c1c":q.difficulty==="중"?"#92400e":"#065f46"}}>{q.difficulty}</span>
+                            </td>
+                            <td style={{padding:"6px 10px",textAlign:"center",fontWeight:700,color:q.isCorrect?"#059669":"#ef4444"}}>{q.isCorrect?"✓":"✗"}</td>
+                            <td style={{padding:"6px 10px",color:"#64748b",fontSize:10}}>{q.comment}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
+                {/* 2페이지 */}
+                <div style={{width:"100%",padding:"40px 36px",boxSizing:"border-box",position:"relative",borderTop:"4px solid #e2e8f0"}}>
+                  <div style={{height:4,background:"#4f46e5",marginBottom:24}}/>
+                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-end",marginBottom:24,paddingBottom:16,borderBottom:"3px solid #4f46e5"}}>
+                    <div>
+                      <h1 style={{fontSize:28,fontWeight:700,color:"#312e81",marginBottom:4}}>시험분석 보고서</h1>
+                      <span style={{background:"#4f46e5",color:"#fff",fontSize:10,padding:"2px 8px",borderRadius:4,fontWeight:700}}>Analysis Report · PAGE 2/2</span>
+                    </div>
+                    <p style={{fontSize:11,color:"#94a3b8"}}>발행일: {new Date().toLocaleDateString()}</p>
+                  </div>
+
+                  <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16,marginBottom:20}}>
+                    <div style={{background:"#ecfdf5",padding:20,borderRadius:12,border:"1px solid #a7f3d0"}}>
+                      <p style={{fontSize:13,fontWeight:700,color:"#065f46",marginBottom:10}}>✅ 학습 성취 및 강점</p>
+                      <p style={{fontSize:11,color:"#334155",lineHeight:1.7,whiteSpace:"pre-wrap"}}>{analysis.strengths}</p>
+                    </div>
+                    <div style={{background:"#fff1f2",padding:20,borderRadius:12,border:"1px solid #fecdd3"}}>
+                      <p style={{fontSize:13,fontWeight:700,color:"#9f1239",marginBottom:10}}>⚠️ 취약 단원 및 보완점</p>
+                      <p style={{fontSize:11,color:"#334155",lineHeight:1.7,whiteSpace:"pre-wrap"}}>{analysis.weaknesses}</p>
+                    </div>
+                  </div>
+
+                  <div style={{background:"#1e1b4b",color:"#fff",padding:24,borderRadius:12,marginBottom:20,borderTop:"6px solid #6366f1"}}>
+                    <p style={{fontSize:13,fontWeight:700,color:"#a5b4fc",marginBottom:10}}>📅 NEXT LEVEL CURRICULUM</p>
+                    {isEditing?(
+                      <textarea value={editCurriculum} onChange={e=>setEditCurriculum(e.target.value)} style={{width:"100%",background:"rgba(255,255,255,0.1)",border:"1px solid #6366f1",borderRadius:8,padding:10,color:"#e0e7ff",fontSize:11,lineHeight:1.7,resize:"vertical",minHeight:100}}/>
+                    ):(
+                      <p style={{fontSize:11,color:"#c7d2fe",lineHeight:1.7,whiteSpace:"pre-wrap"}}>{editCurriculum}</p>
+                    )}
+                  </div>
+
+                  <div style={{background:"#fff",padding:20,borderRadius:12,border:"2px solid #e2e8f0"}}>
+                    <p style={{fontSize:11,fontWeight:700,color:"#4f46e5",marginBottom:10}}>💬 COACH MESSAGE</p>
+                    {isEditing?(
+                      <textarea value={editComments} onChange={e=>setEditComments(e.target.value)} style={{width:"100%",background:"#f8fafc",border:"1px solid #e2e8f0",borderRadius:8,padding:10,color:"#475569",fontSize:11,lineHeight:1.7,resize:"vertical",minHeight:80}}/>
+                    ):(
+                      <p style={{fontSize:11,color:"#475569",fontStyle:"italic",lineHeight:1.7}}>"{editComments}"</p>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function ProgressTab(){
   const coaches=COACHES.filter(c=>c!==ADMIN);
   const [allChecks,setAllChecks]=useState({});
@@ -590,7 +855,7 @@ export default function App(){
         </div>
 
         <div className="tabs">
-          {[["calendar","📅 일정"],["resource","📂 자료"],["settle","💰 지원금"],["notice","📌 공지"],["notice_gen","📄 안내문"],["free_lesson","🆓 무료수업"],...(isAdmin?[["progress","👥 현황"]]:[])]
+          {[["calendar","📅 일정"],["resource","📂 자료"],["settle","💰 지원금"],["notice","📌 공지"],["notice_gen","📄 안내문"],["free_lesson","🆓 무료수업"],["exam_analysis","📊 시험분석"],...(isAdmin?[["progress","👥 현황"]]:[])]
             .map(([k,l])=><button key={k} className={`tab-btn${tab===k?" active":""}`} onClick={()=>setTab(k)}>{l}</button>)}
         </div>
 
@@ -708,6 +973,7 @@ export default function App(){
 
         {tab==="notice_gen"&&<NoticeGen/>}
         {tab==="free_lesson"&&<FreeLessonNotice/>}
+        {tab==="exam_analysis"&&<ExamAnalysis/>}
         {tab==="progress"&&isAdmin&&<ProgressTab/>}
 
         {showEv&&<Modal title="일정 추가" onClose={()=>setShowEv(false)}>
