@@ -14,7 +14,14 @@ const firebaseConfig = {
 const fbApp = initializeApp(firebaseConfig);
 const db = getFirestore(fbApp);
 
-const COACHES_DEFAULT = ["김윤정","임서영","윤민정","나지수","서예린"];
+// 코치 목록: {name, isNew} 형태
+const COACHES_DEFAULT = [
+  {name:"김윤정",isNew:false},
+  {name:"임서영",isNew:true},
+  {name:"윤민정",isNew:true},
+  {name:"나지수",isNew:true},
+  {name:"서예린",isNew:true},
+];
 const ADMIN = "김윤정";
 
 const TASKS = [
@@ -111,14 +118,15 @@ function Modal({title,onClose,children}){
 function ProgressTab({ coaches, addCoach, removeCoach }){
   const [allChecks, setAllChecks] = useState({});
   const [newName, setNewName] = useState("");
-  const coachList = coaches.filter(c => c !== ADMIN);
+  const [newIsNew, setNewIsNew] = useState(true);
+  const coachList = coaches.filter(c => c.name !== ADMIN);
 
   useEffect(()=>{
     (async()=>{
       const result={};
       for(const coach of coachList){
-        const d=await fbGet("checks",coach);
-        result[coach]=d?d.data:{};
+        const d=await fbGet("checks", coach.name);
+        result[coach.name]=d?d.data:{};
       }
       setAllChecks(result);
     })();
@@ -127,9 +135,10 @@ function ProgressTab({ coaches, addCoach, removeCoach }){
   async function handleAdd(){
     const name = newName.trim();
     if(!name){ alert("이름을 입력해 주세요."); return; }
-    if(coaches.includes(name)){ alert("이미 등록된 이름입니다."); return; }
-    await addCoach(name);
+    if(coaches.some(c=>c.name===name)){ alert("이미 등록된 이름입니다."); return; }
+    await addCoach(name, newIsNew);
     setNewName("");
+    setNewIsNew(true);
   }
 
   return(
@@ -140,17 +149,26 @@ function ProgressTab({ coaches, addCoach, removeCoach }){
       </div>
 
       {/* 코치 추가 */}
-      <div style={{display:"flex",gap:8,marginBottom:16,padding:"12px 14px",background:"#f0f7ff",borderRadius:10,border:"1px solid #BBDEFB"}}>
-        <input
-          value={newName}
-          onChange={e=>setNewName(e.target.value)}
-          onKeyDown={e=>e.key==="Enter"&&handleAdd()}
-          placeholder="새 코치 이름 입력"
-          style={{flex:1,padding:"8px 10px",borderRadius:8,border:"1px solid #ddd",fontSize:13,marginBottom:0}}
-        />
-        <button onClick={handleAdd} style={{padding:"8px 16px",borderRadius:8,background:"#5C6BC0",color:"#fff",border:"none",cursor:"pointer",fontWeight:600,fontSize:13,flexShrink:0}}>
-          + 추가
-        </button>
+      <div style={{marginBottom:16,padding:"12px 14px",background:"#f0f7ff",borderRadius:10,border:"1px solid #BBDEFB"}}>
+        <div style={{display:"flex",gap:8,marginBottom:8}}>
+          <input
+            value={newName}
+            onChange={e=>setNewName(e.target.value)}
+            onKeyDown={e=>e.key==="Enter"&&handleAdd()}
+            placeholder="새 코치 이름 입력"
+            style={{flex:1,padding:"8px 10px",borderRadius:8,border:"1px solid #ddd",fontSize:13,marginBottom:0}}
+          />
+          <button onClick={handleAdd} style={{padding:"8px 16px",borderRadius:8,background:"#5C6BC0",color:"#fff",border:"none",cursor:"pointer",fontWeight:600,fontSize:13,flexShrink:0}}>
+            + 추가
+          </button>
+        </div>
+        {/* 신입 여부 체크박스 */}
+        <div onClick={()=>setNewIsNew(v=>!v)} style={{display:"flex",alignItems:"center",gap:8,cursor:"pointer",width:"fit-content"}}>
+          <div style={{width:18,height:18,borderRadius:4,border:`2px solid ${newIsNew?"#5C6BC0":"#ccc"}`,background:newIsNew?"#5C6BC0":"transparent",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
+            {newIsNew&&<span style={{color:"#fff",fontSize:11}}>✓</span>}
+          </div>
+          <span style={{fontSize:12,color:"#555"}}>신입 코치 <span style={{color:"#aaa"}}>(체크 시 필수과정 표시됨)</span></span>
+        </div>
       </div>
 
       {coachList.length === 0 && (
@@ -158,33 +176,38 @@ function ProgressTab({ coaches, addCoach, removeCoach }){
       )}
 
       {coachList.map(coach=>{
-        const ck=allChecks[coach]||{};
+        const ck=allChecks[coach.name]||{};
         const done=TASKS.filter(t=>ck[t.id]).length;
         const pct=Math.round(done/TASKS.length*100);
         return(
-          <div key={coach} style={{background:"#f9f9f9",borderRadius:10,border:"1px solid #eee",padding:"12px 14px",marginBottom:12}}>
+          <div key={coach.name} style={{background:"#f9f9f9",borderRadius:10,border:"1px solid #eee",padding:"12px 14px",marginBottom:12}}>
             <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:8}}>
               <div style={{display:"flex",alignItems:"center",gap:8}}>
-                <div style={{width:32,height:32,borderRadius:"50%",background:"#E8EAF6",display:"flex",alignItems:"center",justifyContent:"center",fontSize:13,fontWeight:600,color:"#3949AB"}}>{coach[0]}</div>
-                <span style={{fontSize:14,fontWeight:600,color:"#333"}}>{coach}</span>
+                <div style={{width:32,height:32,borderRadius:"50%",background:"#E8EAF6",display:"flex",alignItems:"center",justifyContent:"center",fontSize:13,fontWeight:600,color:"#3949AB"}}>{coach.name[0]}</div>
+                <div>
+                  <span style={{fontSize:14,fontWeight:600,color:"#333"}}>{coach.name}</span>
+                  <span style={{marginLeft:6,fontSize:10,padding:"2px 6px",borderRadius:8,background:coach.isNew?"#FFF9C4":"#E8F5E9",color:coach.isNew?"#F57F17":"#2E7D32",fontWeight:600}}>{coach.isNew?"신입":"기존"}</span>
+                </div>
               </div>
               <div style={{display:"flex",alignItems:"center",gap:8}}>
-                <span style={{fontSize:12,padding:"3px 10px",borderRadius:20,background:pct===100?"#E8F5E9":pct>0?"#E3F2FD":"#f5f5f5",color:pct===100?"#2E7D32":pct>0?"#1565C0":"#aaa",fontWeight:600}}>
+                {coach.isNew&&<span style={{fontSize:12,padding:"3px 10px",borderRadius:20,background:pct===100?"#E8F5E9":pct>0?"#E3F2FD":"#f5f5f5",color:pct===100?"#2E7D32":pct>0?"#1565C0":"#aaa",fontWeight:600}}>
                   {done}/{TASKS.length} {pct===100?"✓ 완료":pct>0?"진행중":"미시작"}
-                </span>
-                <button onClick={()=>removeCoach(coach)} style={{padding:"3px 8px",borderRadius:6,background:"#fff0f0",color:"#EF5350",border:"1px solid #ffcdd2",cursor:"pointer",fontSize:11,fontWeight:600}}>삭제</button>
+                </span>}
+                <button onClick={()=>removeCoach(coach.name)} style={{padding:"3px 8px",borderRadius:6,background:"#fff0f0",color:"#EF5350",border:"1px solid #ffcdd2",cursor:"pointer",fontSize:11,fontWeight:600}}>삭제</button>
               </div>
             </div>
-            <div style={{background:"#e0e0e0",borderRadius:20,height:7,overflow:"hidden",marginBottom:10}}>
-              <div style={{height:"100%",width:pct+"%",background:pct===100?"#66BB6A":"#5C6BC0",borderRadius:20}}/>
-            </div>
-            <div style={{display:"flex",flexWrap:"wrap",gap:4}}>
-              {TASKS.map(t=>(
-                <span key={t.id} style={{fontSize:10,padding:"3px 8px",borderRadius:10,background:ck[t.id]?"#E8F5E9":"#fff",color:ck[t.id]?"#2E7D32":"#aaa",border:`1px solid ${ck[t.id]?"#A5D6A7":"#eee"}`}}>
-                  {ck[t.id]?"✓ ":""}{t.title}
-                </span>
-              ))}
-            </div>
+            {coach.isNew&&<>
+              <div style={{background:"#e0e0e0",borderRadius:20,height:7,overflow:"hidden",marginBottom:10}}>
+                <div style={{height:"100%",width:pct+"%",background:pct===100?"#66BB6A":"#5C6BC0",borderRadius:20}}/>
+              </div>
+              <div style={{display:"flex",flexWrap:"wrap",gap:4}}>
+                {TASKS.map(t=>(
+                  <span key={t.id} style={{fontSize:10,padding:"3px 8px",borderRadius:10,background:ck[t.id]?"#E8F5E9":"#fff",color:ck[t.id]?"#2E7D32":"#aaa",border:`1px solid ${ck[t.id]?"#A5D6A7":"#eee"}`}}>
+                    {ck[t.id]?"✓ ":""}{t.title}
+                  </span>
+                ))}
+              </div>
+            </>}
           </div>
         );
       })}
@@ -1139,7 +1162,6 @@ export default function App(){
     })();
   },[]);
 
-  // 로그인 후 체크리스트 불러오기
   useEffect(()=>{
     if(!user)return;
     (async()=>{
@@ -1149,18 +1171,16 @@ export default function App(){
     })();
   },[user]);
 
-  // ✅ 코치 추가 (Firebase 저장)
-  async function addCoach(name){
-    const next=[...coaches,name];
+  async function addCoach(name, isNew=true){
+    const next=[...coaches, {name, isNew}];
     setCoaches(next);
     await fbSet("settings","coaches",{list:next});
   }
 
-  // ✅ 코치 삭제 (Firebase 저장)
   async function removeCoach(name){
     if(name===ADMIN){alert("관리자는 삭제할 수 없어요!");return;}
     if(!window.confirm(`'${name}' 코치를 삭제하시겠습니까?`))return;
-    const next=coaches.filter(c=>c!==name);
+    const next=coaches.filter(c=>c.name!==name);
     setCoaches(next);
     await fbSet("settings","coaches",{list:next});
   }
@@ -1168,9 +1188,12 @@ export default function App(){
   function login(){
     const n=inp.trim();
     if(!n){setErr("이름을 입력해 주세요.");return;}
-    if(!coaches.includes(n)){setErr("등록되지 않은 이름입니다.");return;}
+    if(!coaches.some(c=>c.name===n)){setErr("등록되지 않은 이름입니다.");return;}
     setUser(n);
   }
+
+  // 현재 로그인한 코치가 신입인지
+  const isNewCoach = coaches.find(c=>c.name===user)?.isNew ?? true;
 
   async function toggleCheck(id){const next={...checks,[id]:!checks[id]};setChecks(next);await fbSet("checks",user,{data:next});}
   async function addEvent(){if(!newEv.title||!newEv.date)return;const id=await fbAdd("events",{...newEv,createdAt:Date.now()});if(id)setEvents(v=>[...v,{...newEv,id}]);setNewEv({title:"",date:"",desc:""});setShowEv(false);}
@@ -1216,7 +1239,7 @@ export default function App(){
           <button onClick={()=>{setUser(null);setChecks({});}} style={{fontSize:12,padding:"6px 12px",borderRadius:8,cursor:"pointer",background:"#f5f5f5",border:"1px solid #ddd",color:"#666"}}>로그아웃</button>
         </div>
 
-        <div className="card">
+        {isNewCoach&&<div className="card">
           <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12}}>
             <h3 style={{fontSize:15,fontWeight:600,color:"#333"}}>신입코치 필수 과정</h3>
             <span style={{fontSize:12,background:done===TASKS.length?"#E8F5E9":"#f5f5f5",color:done===TASKS.length?"#2E7D32":"#888",padding:"3px 10px",borderRadius:20,fontWeight:600}}>{done} / {TASKS.length} 완료</span>
@@ -1233,7 +1256,7 @@ export default function App(){
               {t.url&&<a href={t.url} target="_blank" rel="noreferrer" style={{fontSize:11,padding:"3px 8px",borderRadius:6,background:t.color+"18",color:t.color,border:`1px solid ${t.color}33`,textDecoration:"none",flexShrink:0}}>바로가기</a>}
             </div>
           ))}
-        </div>
+        </div>}
 
         <div className="tabs">
           {[["calendar","📅"],["resource","📂"],["settle","💰"],["notice","📌"],["notice_gen","📄"],["free_lesson","🆓"],["exam_analysis","📊"],["students","📚"],...(isAdmin?[["progress","👥"]]:[])]
