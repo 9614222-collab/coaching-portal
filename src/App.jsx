@@ -17,19 +17,11 @@ const db = getFirestore(fbApp);
 const COACHES_DEFAULT = ["김윤정","임서영","윤민정","나지수","서예린"];
 const ADMIN = "김윤정";
 
-async function loadCoaches(){
-  try{const d=await fbGet("settings","coaches");return(d&&d.list&&d.list.length>0)?d.list:COACHES_DEFAULT;}catch{return COACHES_DEFAULT;}
-}
-async function saveCoaches(list){
-  await fbSet("settings","coaches",{list});
-}
-
 const TASKS = [
   {id:"t1",title:"신입코치 영상 1",sub:"V-CAM",url:"https://vcampus.educo.co.kr/login",color:"#5C6BC0"},
   {id:"t2",title:"신입코치 영상 2",sub:"V-CAM",url:"https://vcampus.educo.co.kr/login",color:"#5C6BC0"},
   {id:"t3",title:"한국코칭심리협회 TLC 3급",sub:"IKCPA",url:"http://www.ikcpa.or.kr/",color:"#26A69A"},
   {id:"t4",title:"인생코칭",sub:"",url:"",color:"#EF5350"},
-
   {id:"t6",title:"퍼스트코칭",sub:"코칭존 사이트에서 신청",url:"",color:"#F57C00"},
   {id:"t7",title:"직무컨설팅",sub:"업무 1:1 학습 · 코칭존 사이트",url:"",color:"#F57C00"},
   {id:"t8",title:"타겟프로필 만들기",sub:"",url:"",color:"#7B1FA2"},
@@ -115,6 +107,91 @@ function Modal({title,onClose,children}){
   );
 }
 
+// ✅ ProgressTab: coaches/addCoach/removeCoach를 props로 받음
+function ProgressTab({ coaches, addCoach, removeCoach }){
+  const [allChecks, setAllChecks] = useState({});
+  const [newName, setNewName] = useState("");
+  const coachList = coaches.filter(c => c !== ADMIN);
+
+  useEffect(()=>{
+    (async()=>{
+      const result={};
+      for(const coach of coachList){
+        const d=await fbGet("checks",coach);
+        result[coach]=d?d.data:{};
+      }
+      setAllChecks(result);
+    })();
+  },[coaches]);
+
+  async function handleAdd(){
+    const name = newName.trim();
+    if(!name){ alert("이름을 입력해 주세요."); return; }
+    if(coaches.includes(name)){ alert("이미 등록된 이름입니다."); return; }
+    await addCoach(name);
+    setNewName("");
+  }
+
+  return(
+    <div className="card">
+      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:14}}>
+        <h3 style={{fontSize:15,fontWeight:600,color:"#333"}}>코치별 필수 과정 현황</h3>
+        <span style={{fontSize:12,color:"#aaa"}}>총 {coachList.length}명</span>
+      </div>
+
+      {/* 코치 추가 */}
+      <div style={{display:"flex",gap:8,marginBottom:16,padding:"12px 14px",background:"#f0f7ff",borderRadius:10,border:"1px solid #BBDEFB"}}>
+        <input
+          value={newName}
+          onChange={e=>setNewName(e.target.value)}
+          onKeyDown={e=>e.key==="Enter"&&handleAdd()}
+          placeholder="새 코치 이름 입력"
+          style={{flex:1,padding:"8px 10px",borderRadius:8,border:"1px solid #ddd",fontSize:13,marginBottom:0}}
+        />
+        <button onClick={handleAdd} style={{padding:"8px 16px",borderRadius:8,background:"#5C6BC0",color:"#fff",border:"none",cursor:"pointer",fontWeight:600,fontSize:13,flexShrink:0}}>
+          + 추가
+        </button>
+      </div>
+
+      {coachList.length === 0 && (
+        <p style={{textAlign:"center",color:"#aaa",fontSize:13,padding:"1.5rem 0"}}>등록된 코치가 없습니다.</p>
+      )}
+
+      {coachList.map(coach=>{
+        const ck=allChecks[coach]||{};
+        const done=TASKS.filter(t=>ck[t.id]).length;
+        const pct=Math.round(done/TASKS.length*100);
+        return(
+          <div key={coach} style={{background:"#f9f9f9",borderRadius:10,border:"1px solid #eee",padding:"12px 14px",marginBottom:12}}>
+            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:8}}>
+              <div style={{display:"flex",alignItems:"center",gap:8}}>
+                <div style={{width:32,height:32,borderRadius:"50%",background:"#E8EAF6",display:"flex",alignItems:"center",justifyContent:"center",fontSize:13,fontWeight:600,color:"#3949AB"}}>{coach[0]}</div>
+                <span style={{fontSize:14,fontWeight:600,color:"#333"}}>{coach}</span>
+              </div>
+              <div style={{display:"flex",alignItems:"center",gap:8}}>
+                <span style={{fontSize:12,padding:"3px 10px",borderRadius:20,background:pct===100?"#E8F5E9":pct>0?"#E3F2FD":"#f5f5f5",color:pct===100?"#2E7D32":pct>0?"#1565C0":"#aaa",fontWeight:600}}>
+                  {done}/{TASKS.length} {pct===100?"✓ 완료":pct>0?"진행중":"미시작"}
+                </span>
+                <button onClick={()=>removeCoach(coach)} style={{padding:"3px 8px",borderRadius:6,background:"#fff0f0",color:"#EF5350",border:"1px solid #ffcdd2",cursor:"pointer",fontSize:11,fontWeight:600}}>삭제</button>
+              </div>
+            </div>
+            <div style={{background:"#e0e0e0",borderRadius:20,height:7,overflow:"hidden",marginBottom:10}}>
+              <div style={{height:"100%",width:pct+"%",background:pct===100?"#66BB6A":"#5C6BC0",borderRadius:20}}/>
+            </div>
+            <div style={{display:"flex",flexWrap:"wrap",gap:4}}>
+              {TASKS.map(t=>(
+                <span key={t.id} style={{fontSize:10,padding:"3px 8px",borderRadius:10,background:ck[t.id]?"#E8F5E9":"#fff",color:ck[t.id]?"#2E7D32":"#aaa",border:`1px solid ${ck[t.id]?"#A5D6A7":"#eee"}`}}>
+                  {ck[t.id]?"✓ ":""}{t.title}
+                </span>
+              ))}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 function ExamAnalysis(){
   const GEMINI_API_KEY = "AIzaSyB_EoXucejx_vg59VzHQdFZxlaEtX7CVl8";
   const [info,setInfo]=useState({studentName:"",grade:"",subject:"",examRange:"",unitName:"",schoolName:"",score:"",wrongQuestions:"",examPaperBase64s:[]});
@@ -193,13 +270,11 @@ function ExamAnalysis(){
 
   const iSt={width:"100%",padding:"8px 10px",borderRadius:8,border:"1px solid #ddd",fontSize:13,marginBottom:8,background:"#fafafa"};
   const lb={fontSize:11,color:"#555",fontWeight:600,marginBottom:4,display:"block"};
-  const COLORS=["#ef4444","#f59e0b","#10b981"];
 
   return(
     <div className="card">
       <h3 style={{fontSize:15,fontWeight:600,color:"#333",marginBottom:14}}>📊 시험분석 보고서</h3>
       <div style={{display:"grid",gridTemplateColumns:"380px 1fr",gap:20,alignItems:"start"}}>
-        {/* 입력 폼 */}
         <div style={{background:"#f8fafc",borderRadius:12,padding:20,border:"1px solid #e2e8f0"}}>
           <p style={{fontSize:13,fontWeight:600,color:"#4f46e5",marginBottom:14}}>📋 회원 정보 입력</p>
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
@@ -235,7 +310,6 @@ function ExamAnalysis(){
           <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
         </div>
 
-        {/* 미리보기 */}
         <div>
           {!analysis&&!loading&&<div style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",height:400,color:"#aaa",fontSize:14}}>
             <div style={{fontSize:48,marginBottom:12}}>📄</div>
@@ -259,7 +333,6 @@ function ExamAnalysis(){
 
             <div style={{background:"#e5e7eb",borderRadius:16,padding:16,overflowY:"auto",maxHeight:700}}>
               <div ref={reportRef} style={{background:"#fff",fontFamily:"'Malgun Gothic',sans-serif"}}>
-                {/* 1페이지 */}
                 <div style={{width:"100%",padding:"40px 36px",boxSizing:"border-box",position:"relative",minHeight:600}}>
                   <div style={{height:4,background:"#4f46e5",marginBottom:24}}/>
                   <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-end",marginBottom:24,paddingBottom:16,borderBottom:"3px solid #4f46e5"}}>
@@ -269,8 +342,6 @@ function ExamAnalysis(){
                     </div>
                     <p style={{fontSize:11,color:"#94a3b8"}}>발행일: {new Date().toLocaleDateString()}</p>
                   </div>
-
-                  {/* 학생 정보 */}
                   <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,background:"#f8fafc",padding:20,borderRadius:12,marginBottom:20,border:"1px solid #e2e8f0"}}>
                     {[["👤 이름/학년",`${info.studentName} (${info.grade})`],["📚 과목/성적",`${info.subject} (${info.score}점)`],["🏫 학교",info.schoolName],["📋 시험범위",info.examRange]].map(([l,v])=>(
                       <div key={l} style={{display:"flex",gap:10,alignItems:"center"}}>
@@ -282,8 +353,6 @@ function ExamAnalysis(){
                       </div>
                     ))}
                   </div>
-
-                  {/* 난이도 분포 + 출제 경향 */}
                   <div style={{display:"grid",gridTemplateColumns:"1fr 2fr",gap:16,marginBottom:20}}>
                     <div>
                       <p style={{fontSize:13,fontWeight:700,color:"#312e81",marginBottom:10}}>📊 난이도 분포</p>
@@ -304,8 +373,6 @@ function ExamAnalysis(){
                       <div style={{background:"#f8fafc",padding:14,borderRadius:10,border:"1px solid #e2e8f0",fontSize:11,color:"#475569",lineHeight:1.7,whiteSpace:"pre-wrap"}}>{analysis.trends}</div>
                     </div>
                   </div>
-
-                  {/* 문항 분석 */}
                   <p style={{fontSize:13,fontWeight:700,color:"#312e81",marginBottom:10}}>✅ 문항별 분석</p>
                   <div style={{border:"1px solid #e2e8f0",borderRadius:10,overflow:"hidden"}}>
                     <table style={{width:"100%",borderCollapse:"collapse",fontSize:11}}>
@@ -330,8 +397,6 @@ function ExamAnalysis(){
                     </table>
                   </div>
                 </div>
-
-                {/* 2페이지 */}
                 <div style={{width:"100%",padding:"40px 36px",boxSizing:"border-box",position:"relative",borderTop:"4px solid #e2e8f0"}}>
                   <div style={{height:4,background:"#4f46e5",marginBottom:24}}/>
                   <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-end",marginBottom:24,paddingBottom:16,borderBottom:"3px solid #4f46e5"}}>
@@ -341,7 +406,6 @@ function ExamAnalysis(){
                     </div>
                     <p style={{fontSize:11,color:"#94a3b8"}}>발행일: {new Date().toLocaleDateString()}</p>
                   </div>
-
                   <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16,marginBottom:20}}>
                     <div style={{background:"#ecfdf5",padding:20,borderRadius:12,border:"1px solid #a7f3d0"}}>
                       <p style={{fontSize:13,fontWeight:700,color:"#065f46",marginBottom:10}}>✅ 학습 성취 및 강점</p>
@@ -352,7 +416,6 @@ function ExamAnalysis(){
                       <p style={{fontSize:11,color:"#334155",lineHeight:1.7,whiteSpace:"pre-wrap"}}>{analysis.weaknesses}</p>
                     </div>
                   </div>
-
                   <div style={{background:"#1e1b4b",color:"#fff",padding:24,borderRadius:12,marginBottom:20,borderTop:"6px solid #6366f1"}}>
                     <p style={{fontSize:13,fontWeight:700,color:"#a5b4fc",marginBottom:10}}>📅 NEXT LEVEL CURRICULUM</p>
                     {isEditing?(
@@ -361,7 +424,6 @@ function ExamAnalysis(){
                       <p style={{fontSize:11,color:"#c7d2fe",lineHeight:1.7,whiteSpace:"pre-wrap"}}>{editCurriculum}</p>
                     )}
                   </div>
-
                   <div style={{background:"#fff",padding:20,borderRadius:12,border:"2px solid #e2e8f0"}}>
                     <p style={{fontSize:11,fontWeight:700,color:"#4f46e5",marginBottom:10}}>💬 COACH MESSAGE</p>
                     {isEditing?(
@@ -376,66 +438,6 @@ function ExamAnalysis(){
           </div>}
         </div>
       </div>
-    </div>
-  );
-}
-
-function ProgressTab(){
-  const coaches=COACHES.filter(c=>c!==ADMIN);
-  const [allChecks,setAllChecks]=useState({});
-  useEffect(()=>{
-    (async()=>{
-      const result={};
-      for(const coach of coaches){
-        const d=await fbGet("checks",coach);
-        result[coach]=d?d.data:{};
-      }
-      setAllChecks(result);
-    })();
-  },[]);
-  return(
-    <div className="card">
-      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:14}}>
-        <h3 style={{fontSize:15,fontWeight:600,color:"#333"}}>코치별 필수 과정 현황</h3>
-        <span style={{fontSize:12,color:"#aaa"}}>총 {coachList.length}명</span>
-      </div>
-
-      {/* 코치 추가 */}
-      <div style={{display:"flex",gap:8,marginBottom:16,padding:"12px 14px",background:"#f0f7ff",borderRadius:10,border:"1px solid #BBDEFB"}}>
-        <input value={newName} onChange={e=>setNewName(e.target.value)} onKeyDown={e=>e.key==="Enter"&&handleAdd()} placeholder="새 코치 이름 입력" style={{flex:1,padding:"8px 10px",borderRadius:8,border:"1px solid #ddd",fontSize:13,marginBottom:0}}/>
-        <button onClick={handleAdd} style={{padding:"8px 16px",borderRadius:8,background:"#5C6BC0",color:"#fff",border:"none",cursor:"pointer",fontWeight:600,fontSize:13,flexShrink:0}}>+ 추가</button>
-      </div>
-      {coachList.map(coach=>{
-        const ck=allChecks[coach]||{};
-        const done=TASKS.filter(t=>ck[t.id]).length;
-        const pct=Math.round(done/TASKS.length*100);
-        return(
-          <div key={coach} style={{background:"#f9f9f9",borderRadius:10,border:"1px solid #eee",padding:"12px 14px",marginBottom:12}}>
-            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:8}}>
-              <div style={{display:"flex",alignItems:"center",gap:8}}>
-                <div style={{width:32,height:32,borderRadius:"50%",background:"#E8EAF6",display:"flex",alignItems:"center",justifyContent:"center",fontSize:13,fontWeight:600,color:"#3949AB"}}>{coach[0]}</div>
-                <span style={{fontSize:14,fontWeight:600,color:"#333"}}>{coach}</span>
-              </div>
-              <div style={{display:"flex",alignItems:"center",gap:8}}>
-                <span style={{fontSize:12,padding:"3px 10px",borderRadius:20,background:pct===100?"#E8F5E9":pct>0?"#E3F2FD":"#f5f5f5",color:pct===100?"#2E7D32":pct>0?"#1565C0":"#aaa",fontWeight:600}}>
-                  {done}/{TASKS.length} {pct===100?"✓ 완료":pct>0?"진행중":"미시작"}
-                </span>
-                <button onClick={()=>removeCoach(coach)} style={{padding:"3px 8px",borderRadius:6,background:"#fff0f0",color:"#EF5350",border:"1px solid #ffcdd2",cursor:"pointer",fontSize:11,fontWeight:600}}>삭제</button>
-              </div>
-            </div>
-            <div style={{background:"#e0e0e0",borderRadius:20,height:7,overflow:"hidden",marginBottom:10}}>
-              <div style={{height:"100%",width:pct+"%",background:pct===100?"#66BB6A":"#5C6BC0",borderRadius:20}}/>
-            </div>
-            <div style={{display:"flex",flexWrap:"wrap",gap:4}}>
-              {TASKS.map(t=>(
-                <span key={t.id} style={{fontSize:10,padding:"3px 8px",borderRadius:10,background:ck[t.id]?"#E8F5E9":"#fff",color:ck[t.id]?"#2E7D32":"#aaa",border:`1px solid ${ck[t.id]?"#A5D6A7":"#eee"}`}}>
-                  {ck[t.id]?"✓ ":""}{t.title}
-                </span>
-              ))}
-            </div>
-          </div>
-        );
-      })}
     </div>
   );
 }
@@ -678,37 +680,6 @@ function NoticeGen(){
                 <div style={{padding:"12px 16px",background:"#f9f9f9",borderRadius:8,textAlign:"center"}}><p style={{fontSize:11,color:"#888",marginBottom:6}}>학생 아이디</p><p style={{fontSize:13,fontWeight:600}}>{form.studentId||"(미입력)"}</p></div>
                 <div style={{padding:"12px 16px",background:"#f9f9f9",borderRadius:8,textAlign:"center"}}><p style={{fontSize:11,color:"#888",marginBottom:6}}>학생 비밀번호</p><p style={{fontSize:13,fontWeight:600}}>{form.studentPw||"(미입력)"}</p></div>
               </div>
-              <div style={{padding:"12px 16px",background:"#f9f9f9",borderRadius:8}}>
-                <p style={{fontSize:12,fontWeight:600,marginBottom:6}}>● 로그인 안내 및 비밀번호 발급</p>
-                <p style={{fontSize:11,color:"#555",marginBottom:4}}>1) 통합 회원전환을 하시면 위에 발급해드린 아이디는 <strong>사용이 불가</strong>하오니, 기존 아이디로 로그인하시길 추천드립니다.</p>
-                <p style={{fontSize:11,color:"#555",marginBottom:12}}>2) 비밀번호를 모르시는 경우, 비밀번호 찾기로 진행해 주세요</p>
-                <p style={{fontSize:12,fontWeight:600,marginBottom:8}}>● 비밀번호 찾기</p>
-                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
-                  <div style={{border:"1px solid #ddd",borderRadius:8,overflow:"hidden"}}>
-                    <div style={{background:"#1565C0",padding:"6px 10px",display:"flex",alignItems:"center",justifyContent:"space-between"}}><span style={{fontSize:10,color:"#fff",fontWeight:600}}>상상코칭 로그인</span><div style={{background:"#D32F2F",color:"#fff",fontSize:9,padding:"2px 6px",borderRadius:3,fontWeight:700}}>① 로그인</div></div>
-                    <div style={{padding:"10px",fontSize:10}}>
-                      <div style={{border:"1px solid #ddd",borderRadius:6,padding:"8px",marginBottom:6,background:"#fafafa"}}>
-                        <p style={{color:"#888",fontSize:9,marginBottom:4}}>로그인 해주세요!</p>
-                        <div style={{display:"flex",gap:6,marginBottom:6,fontSize:9,alignItems:"center"}}><span style={{background:"#1565C0",color:"#fff",padding:"1px 6px",borderRadius:3,fontSize:8}}>● 회원</span><span style={{fontSize:8,color:"#888"}}>선생님</span></div>
-                        <div style={{background:"#eee",height:16,borderRadius:3,marginBottom:4}}/><div style={{background:"#eee",height:16,borderRadius:3,marginBottom:6}}/>
-                        <div style={{background:"#1565C0",height:20,borderRadius:4,display:"flex",alignItems:"center",justifyContent:"center"}}><span style={{color:"#fff",fontSize:9,fontWeight:600}}>로그인</span></div>
-                      </div>
-                      <div style={{border:"2px solid #D32F2F",borderRadius:4,padding:"4px",textAlign:"center",fontSize:9,color:"#D32F2F",fontWeight:600}}>② 아이디/비밀번호 찾기</div>
-                    </div>
-                  </div>
-                  <div style={{border:"1px solid #ddd",borderRadius:8,overflow:"hidden"}}>
-                    <div style={{background:"#1565C0",padding:"6px 10px",display:"flex",alignItems:"center",justifyContent:"space-between"}}><span style={{fontSize:10,color:"#fff",fontWeight:600}}>비밀번호 찾기</span><div style={{background:"#D32F2F",color:"#fff",fontSize:9,padding:"2px 6px",borderRadius:3,fontWeight:700}}>③ 탭 클릭</div></div>
-                    <div style={{padding:"10px",fontSize:9,color:"#555",lineHeight:1.6}}>
-                      <div style={{background:"#FFF3E0",border:"1px solid #FFB74D",borderRadius:4,padding:"4px",marginBottom:6,fontSize:8,color:"#E65100"}}>▲ 아이디와 휴대전화번호가 일치해야 임시비밀번호가 발송됩니다.</div>
-                      <p style={{marginBottom:2,fontWeight:600}}>④ 아이디 입력</p>
-                      <div style={{border:"1px solid #ddd",borderRadius:3,padding:"3px 6px",marginBottom:6,color:"#aaa",fontSize:8}}>아이디 또는 이메일</div>
-                      <p style={{marginBottom:2,fontWeight:600}}>⑤ 법정대리인 선택</p>
-                      <div style={{border:"1px solid #ddd",borderRadius:3,padding:"3px 6px",marginBottom:6,color:"#aaa",fontSize:8}}>⑥ 휴대폰 번호 입력</div>
-                      <div style={{background:"#1a1a1a",borderRadius:4,padding:"5px",textAlign:"center"}}><span style={{color:"#fff",fontSize:9,fontWeight:600}}>⑦ 비밀번호 찾기</span></div>
-                    </div>
-                  </div>
-                </div>
-              </div>
             </div>
           </div>
           {/* 2페이지 */}
@@ -791,35 +762,49 @@ export default function App(){
   const [newEv,setNewEv]=useState({title:"",date:"",desc:""});
   const [newNt,setNewNt]=useState({title:"",content:""});
   const [selDay,setSelDay]=useState(null);
+  const [coaches,setCoaches]=useState(COACHES_DEFAULT);
 
-  const [coaches, setCoaches] = useState(COACHES);
-
+  // Firebase에서 코치 목록 불러오기
   useEffect(()=>{
     (async()=>{
-      const d = await fbGet("settings","coaches");
-      if(d && d.list) setCoaches(d.list);
-      else setCoaches(COACHES);
+      const d=await fbGet("settings","coaches");
+      setCoaches(d?.list?.length ? d.list : COACHES_DEFAULT);
     })();
   },[]);
 
+  // 로그인 후 체크리스트 불러오기
   useEffect(()=>{
     if(!user)return;
-    (async()=>{const d=await fbGet("checks",user);setChecks(d?d.data:{});})();
+    (async()=>{
+      const d=await fbGet("checks",user);setChecks(d?d.data:{});
+      const ev=await fbGetAll("events");setEvents(ev);
+      const nt=await fbGetAll("notices");setNotices(nt.sort((a,b)=>b.createdAt-a.createdAt));
+    })();
   },[user]);
 
+  // ✅ 코치 추가 (Firebase 저장)
   async function addCoach(name){
-    const next=[...coaches, name];
+    const next=[...coaches,name];
     setCoaches(next);
     await fbSet("settings","coaches",{list:next});
   }
+
+  // ✅ 코치 삭제 (Firebase 저장)
   async function removeCoach(name){
     if(name===ADMIN){alert("관리자는 삭제할 수 없어요!");return;}
+    if(!window.confirm(`'${name}' 코치를 삭제하시겠습니까?`))return;
     const next=coaches.filter(c=>c!==name);
     setCoaches(next);
     await fbSet("settings","coaches",{list:next});
   }
 
-  function login(){const n=inp.trim();if(!n){setErr("이름을 입력해 주세요.");return;}if(!coaches.includes(n)){setErr("등록되지 않은 이름입니다.");return;}setUser(n);}
+  function login(){
+    const n=inp.trim();
+    if(!n){setErr("이름을 입력해 주세요.");return;}
+    if(!coaches.includes(n)){setErr("등록되지 않은 이름입니다.");return;}
+    setUser(n);
+  }
+
   async function toggleCheck(id){const next={...checks,[id]:!checks[id]};setChecks(next);await fbSet("checks",user,{data:next});}
   async function addEvent(){if(!newEv.title||!newEv.date)return;const id=await fbAdd("events",{...newEv,createdAt:Date.now()});if(id)setEvents(v=>[...v,{...newEv,id}]);setNewEv({title:"",date:"",desc:""});setShowEv(false);}
   async function delEvent(id){await fbDel("events",id);setEvents(v=>v.filter(e=>e.id!==id));setSelDay(null);}
@@ -1003,7 +988,13 @@ export default function App(){
         {tab==="notice_gen"&&<NoticeGen/>}
         {tab==="free_lesson"&&<FreeLessonNotice/>}
         {tab==="exam_analysis"&&<ExamAnalysis/>}
-        {tab==="progress"&&isAdmin&&<ProgressTab coaches={coaches} addCoach={addCoach} removeCoach={removeCoach}/>}
+        {tab==="progress"&&isAdmin&&(
+          <ProgressTab
+            coaches={coaches}
+            addCoach={addCoach}
+            removeCoach={removeCoach}
+          />
+        )}
 
         {showEv&&<Modal title="일정 추가" onClose={()=>setShowEv(false)}>
           <input value={newEv.title} onChange={e=>setNewEv(v=>({...v,title:e.target.value}))} placeholder="일정 제목"/>
