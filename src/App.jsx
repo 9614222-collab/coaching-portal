@@ -535,7 +535,7 @@ function FreeLessonNotice(){
 }
 
 function NoticeGen(){
-  const [form,setForm]=useState({name:"",grade:"",schoolLevel:"초등",type:"화상",subject:"영어",times:"2",duration:"60",days:"매주 화요일 오후 4시, 매주 목요일 오후 4시",firstDate:"",book:"",publisher:"",studentId:"",studentPw:"",fee:"",planning:false,teacherPhone:"010-1234-5678",managerPhone:"010-2800-1465"});
+  const [form,setForm]=useState({name:"",grade:"",schoolLevel:"초등",type:"화상",subject:"영어",times:"2",duration:"60",days:"매주 화요일 오후 4시, 매주 목요일 오후 4시",firstDate:"",book:"",publisher:"",studentId:"",studentPw:"",fee:"",planning:false,showFee:true,teacherPhone:"010-1234-5678",managerPhone:"010-2800-1465"});
   const [preview,setPreview]=useState(false);
   const [messages,setMessages]=useState(DEFAULT_MESSAGES.map(m=>({...m})));
   const [editingMsg,setEditingMsg]=useState(null);
@@ -574,6 +574,12 @@ function NoticeGen(){
               <div style={{width:20,height:20,borderRadius:4,border:`2px solid ${form.planning?"#7B1FA2":"#CE93D8"}`,background:form.planning?"#7B1FA2":"transparent",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>{form.planning&&<span style={{color:"#fff",fontSize:12}}>✓</span>}</div>
               <span style={{fontSize:13,fontWeight:600,color:"#4A148C"}}>플래닝 코칭 추가</span>
               <span style={{fontSize:12,color:"#7B1FA2"}}>+ 30,000원</span>
+            </div>
+            {/* 교육비 표시 여부 체크박스 */}
+            <div onClick={()=>set("showFee",!form.showFee)} style={{display:"flex",alignItems:"center",gap:10,padding:"10px 14px",background:"#E3F2FD",borderRadius:8,border:"1px solid #90CAF9",cursor:"pointer",gridColumn:"1/-1"}}>
+              <div style={{width:20,height:20,borderRadius:4,border:`2px solid ${form.showFee?"#1565C0":"#90CAF9"}`,background:form.showFee?"#1565C0":"transparent",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>{form.showFee&&<span style={{color:"#fff",fontSize:12}}>✓</span>}</div>
+              <span style={{fontSize:13,fontWeight:600,color:"#1565C0"}}>📊 교육비 칸 안내문에 포함하기</span>
+              <span style={{fontSize:12,color:"#1976D2"}}>체크 해제 시 안내문에서 교육비 숨김</span>
             </div>
             <div style={{background:"#f0f7ff",borderRadius:10,padding:"12px 16px",border:"1px solid #BBDEFB",display:"flex",alignItems:"center",justifyContent:"space-between",gridColumn:"1/-1"}}>
               <div>
@@ -655,11 +661,11 @@ function NoticeGen(){
                       <span style={{color:k==="수업 횟수"?"#1565C0":"#1a1a1a",fontWeight:k==="수업 횟수"?700:400}}>{v}</span>
                     </div>
                   ))}
-                  <div style={{marginTop:8,padding:"12px 16px",background:"#f0f7ff",borderRadius:8,textAlign:"right"}}>
+                  {form.showFee&&<div style={{marginTop:8,padding:"12px 16px",background:"#f0f7ff",borderRadius:8,textAlign:"right"}}>
                     <p style={{fontSize:11,color:"#888",marginBottom:2}}>□ 예상 월 수업료</p>
                     <p style={{fontSize:24,fontWeight:700,color:"#1565C0"}}>{fee}원</p>
                     <p style={{fontSize:10,color:"#aaa"}}>{form.type} · {form.schoolLevel}{form.planning?" + 플래닝":""}</p>
-                  </div>
+                  </div>}
                 </div>
               </div>
             </div>
