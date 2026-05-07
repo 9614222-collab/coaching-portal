@@ -1158,7 +1158,17 @@ export default function App(){
   useEffect(()=>{
     (async()=>{
       const d=await fbGet("settings","coaches");
-      setCoaches(d?.list?.length ? d.list : COACHES_DEFAULT);
+      if(d?.list?.length){
+        // 구버전(문자열 배열) → 신버전({name,isNew}) 자동 변환
+        const normalized = d.list.map(c =>
+          typeof c === "string" ? {name:c, isNew:true} : c
+        );
+        setCoaches(normalized);
+        // 변환된 데이터를 Firebase에 다시 저장
+        await fbSet("settings","coaches",{list:normalized});
+      } else {
+        setCoaches(COACHES_DEFAULT);
+      }
     })();
   },[]);
 
