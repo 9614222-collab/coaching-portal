@@ -751,6 +751,367 @@ function NoticeGen(){
   );
 }
 
+// ==================== 학생 관리 탭 ====================
+const SUBJECTS_ALL = ["국어","영어","수학","사회","과학"];
+const EXAM_TYPES = ["중간고사","기말고사","모의고사","단원평가","기타"];
+const STUDY_METHODS = ["학원","스스로 하기","과외","인강","학교 수업만"];
+
+function StudentTab({ coachName }) {
+  const [students, setStudents] = useState([]);
+  const [selStudent, setSelStudent] = useState(null);
+  const [showAddStudent, setShowAddStudent] = useState(false);
+  const [showAddExam, setShowAddExam] = useState(false);
+  const [newStudentName, setNewStudentName] = useState("");
+  const [newStudentGrade, setNewStudentGrade] = useState("");
+  const [loading, setLoading] = useState(true);
+
+  // 새 시험 기록 폼
+  const [examForm, setExamForm] = useState({
+    examType: "중간고사",
+    date: new Date().toISOString().slice(0,10),
+    scores: { 국어:"", 영어:"", 수학:"", 사회:"", 과학:"" },
+    totalGoal: "",
+    teachSubjects: [],
+    subjectGoals: {},
+    studentGoal: "",
+    studyMethods: { 국어:"", 영어:"", 수학:"", 사회:"", 과학:"" },
+  });
+
+  useEffect(() => {
+    loadStudents();
+  }, [coachName]);
+
+  async function loadStudents() {
+    setLoading(true);
+    const all = await fbGetAll(`students_${coachName}`);
+    setStudents(all.sort((a,b) => a.name.localeCompare(b.name)));
+    setLoading(false);
+  }
+
+  async function addStudent() {
+    const name = newStudentName.trim();
+    const grade = newStudentGrade.trim();
+    if (!name) return;
+    const id = await fbAdd(`students_${coachName}`, { name, grade, exams: [] });
+    if (id) {
+      const s = { id, name, grade, exams: [] };
+      setStudents(v => [...v, s]);
+      setSelStudent(s);
+    }
+    setNewStudentName(""); setNewStudentGrade("");
+    setShowAddStudent(false);
+  }
+
+  async function deleteStudent(sid) {
+    if (!window.confirm("이 학생을 삭제하시겠습니까?")) return;
+    await fbDel(`students_${coachName}`, sid);
+    setStudents(v => v.filter(s => s.id !== sid));
+    if (selStudent?.id === sid) setSelStudent(null);
+  }
+
+  async function saveExam() {
+    if (!selStudent) return;
+    const exam = { ...examForm, savedAt: Date.now() };
+    const exams = [...(selStudent.exams || []), exam];
+    const updated = { ...selStudent, exams };
+    await fbSet(`students_${coachName}`, selStudent.id, updated);
+    setStudents(v => v.map(s => s.id === selStudent.id ? updated : s));
+    setSelStudent(updated);
+    setShowAddExam(false);
+    setExamForm({
+      examType:"중간고사", date:new Date().toISOString().slice(0,10),
+      scores:{국어:"",영어:"",수학:"",사회:"",과학:""},
+      totalGoal:"", teachSubjects:[], subjectGoals:{},
+      studentGoal:"", studyMethods:{국어:"",영어:"",수학:"",사회:"",과학:""},
+    });
+  }
+
+  async function deleteExam(examIdx) {
+    if (!window.confirm("이 기록을 삭제하시겠습니까?")) return;
+    const exams = selStudent.exams.filter((_,i) => i !== examIdx);
+    const updated = { ...selStudent, exams };
+    await fbSet(`students_${coachName}`, selStudent.id, updated);
+    setStudents(v => v.map(s => s.id === selStudent.id ? updated : s));
+    setSelStudent(updated);
+  }
+
+  function toggleTeachSubject(sub) {
+    setExamForm(f => {
+      const has = f.teachSubjects.includes(sub);
+      return {
+        ...f,
+        teachSubjects: has ? f.teachSubjects.filter(s=>s!==sub) : [...f.teachSubjects, sub],
+        subjectGoals: has ? (() => { const g={...f.subjectGoals}; delete g[sub]; return g; })() : f.subjectGoals,
+      };
+    });
+  }
+
+  // 그래프: 과목별 점수 추이
+  function ScoreGraph({ exams }) {
+    if (!exams || exams.length === 0) return null;
+    const W = 580, H = 200, PAD = { t:20, r:20, b:40, l:40 };
+    const gW = W - PAD.l - PAD.r, gH = H - PAD.t - PAD.b;
+    const colors = { 국어:"#EF5350", 영어:"#1565C0", 수학:"#F57C00", 사회:"#2E7D32", 과학:"#7B1FA2" };
+    const pts = exams.map((e,i) => ({ label:`${e.examType}(${e.date?.slice(5)||""})`, scores:e.scores, i }));
+    const allVals = pts.flatMap(p => SUBJECTS_ALL.map(s => Number(p.scores[s])||0).filter(v=>v>0));
+    const minV = Math.max(0, Math.min(...allVals) - 10);
+    const maxV = Math.min(100, Math.max(...allVals) + 5);
+    const xStep = pts.length > 1 ? gW / (pts.length-1) : gW/2;
+    function yPos(v) { return PAD.t + gH - ((v - minV)/(maxV - minV)) * gH; }
+    function xPos(i) { return PAD.l + (pts.length > 1 ? i * xStep : gW/2); }
+
+    return (
+      <div style={{overflowX:"auto",marginBottom:16}}>
+        <svg width={W} height={H} style={{display:"block",minWidth:W}}>
+          {/* 격자 */}
+          {[0,25,50,75,100].map(v => {
+            const y = yPos(Math.min(maxV, Math.max(minV, v)));
+            if (v < minV || v > maxV) return null;
+            return <g key={v}>
+              <line x1={PAD.l} y1={y} x2={W-PAD.r} y2={y} stroke="#eee" strokeWidth={1}/>
+              <text x={PAD.l-4} y={y+4} fontSize={9} fill="#aaa" textAnchor="end">{v}</text>
+            </g>;
+          })}
+          {/* 선 + 점 */}
+          {SUBJECTS_ALL.map(sub => {
+            const validPts = pts.filter(p => Number(p.scores[sub]) > 0);
+            if (validPts.length === 0) return null;
+            const pathD = validPts.map((p,i) => `${i===0?"M":"L"}${xPos(p.i)},${yPos(Number(p.scores[sub]))}`).join(" ");
+            return <g key={sub}>
+              <path d={pathD} fill="none" stroke={colors[sub]} strokeWidth={2} strokeLinejoin="round"/>
+              {validPts.map(p => (
+                <g key={p.i}>
+                  <circle cx={xPos(p.i)} cy={yPos(Number(p.scores[sub]))} r={4} fill={colors[sub]}/>
+                  <text x={xPos(p.i)} y={yPos(Number(p.scores[sub]))-7} fontSize={9} fill={colors[sub]} textAnchor="middle" fontWeight="600">{p.scores[sub]}</text>
+                </g>
+              ))}
+            </g>;
+          })}
+          {/* x축 라벨 */}
+          {pts.map((p,i) => (
+            <text key={i} x={xPos(i)} y={H-6} fontSize={9} fill="#888" textAnchor="middle">{p.label}</text>
+          ))}
+        </svg>
+        {/* 범례 */}
+        <div style={{display:"flex",gap:12,flexWrap:"wrap",marginTop:6}}>
+          {SUBJECTS_ALL.map(sub=>(
+            <div key={sub} style={{display:"flex",alignItems:"center",gap:4}}>
+              <div style={{width:10,height:10,borderRadius:"50%",background:colors[sub]}}/>
+              <span style={{fontSize:11,color:"#555"}}>{sub}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  const lb = {fontSize:11,color:"#555",fontWeight:600,marginBottom:3,display:"block"};
+  const iSt = {padding:"7px 10px",borderRadius:8,border:"1px solid #ddd",fontSize:13,marginBottom:0,background:"#fafafa",width:"100%"};
+
+  return (
+    <div className="card">
+      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:14}}>
+        <h3 style={{fontSize:15,fontWeight:600,color:"#333"}}>📚 학생 성적 관리</h3>
+        <button onClick={()=>setShowAddStudent(true)} style={{padding:"6px 14px",borderRadius:8,background:"#5C6BC0",color:"#fff",border:"none",cursor:"pointer",fontWeight:600,fontSize:13}}>+ 학생 추가</button>
+      </div>
+
+      {loading && <p style={{textAlign:"center",color:"#aaa",padding:"2rem 0"}}>불러오는 중...</p>}
+
+      {!loading && (
+        <div style={{display:"grid",gridTemplateColumns:"180px 1fr",gap:16,alignItems:"start"}}>
+          {/* 학생 목록 */}
+          <div>
+            <p style={{fontSize:11,color:"#aaa",fontWeight:600,marginBottom:8}}>학생 목록 ({students.length}명)</p>
+            {students.length === 0 && <p style={{fontSize:12,color:"#ccc",textAlign:"center",padding:"1rem 0"}}>학생 없음</p>}
+            {students.map(s => (
+              <div key={s.id} onClick={()=>setSelStudent(s)}
+                style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"8px 10px",borderRadius:8,background:selStudent?.id===s.id?"#E8EAF6":"#f9f9f9",border:`1px solid ${selStudent?.id===s.id?"#5C6BC0":"#eee"}`,marginBottom:6,cursor:"pointer"}}>
+                <div>
+                  <p style={{fontSize:13,fontWeight:600,color:selStudent?.id===s.id?"#3949AB":"#333"}}>{s.name}</p>
+                  <p style={{fontSize:10,color:"#aaa"}}>{s.grade||"학년 미입력"}</p>
+                </div>
+                <button onClick={e=>{e.stopPropagation();deleteStudent(s.id);}} style={{border:"none",background:"none",cursor:"pointer",color:"#EF5350",fontSize:12}}>✕</button>
+              </div>
+            ))}
+          </div>
+
+          {/* 학생 상세 */}
+          <div>
+            {!selStudent && <div style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",height:300,color:"#ccc",fontSize:13}}>
+              <div style={{fontSize:40,marginBottom:10}}>👈</div>
+              <p>학생을 선택하세요</p>
+            </div>}
+
+            {selStudent && (
+              <div>
+                <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:14}}>
+                  <div>
+                    <h4 style={{fontSize:16,fontWeight:700,color:"#333"}}>{selStudent.name}</h4>
+                    <p style={{fontSize:12,color:"#888"}}>{selStudent.grade}</p>
+                  </div>
+                  <button onClick={()=>setShowAddExam(true)} style={{padding:"6px 14px",borderRadius:8,background:"#4CAF50",color:"#fff",border:"none",cursor:"pointer",fontWeight:600,fontSize:13}}>+ 시험 기록</button>
+                </div>
+
+                {/* 그래프 */}
+                {(selStudent.exams||[]).length > 0 && (
+                  <div style={{background:"#f8fafc",borderRadius:10,padding:14,border:"1px solid #e2e8f0",marginBottom:14}}>
+                    <p style={{fontSize:12,fontWeight:700,color:"#5C6BC0",marginBottom:10}}>📈 점수 추이</p>
+                    <ScoreGraph exams={selStudent.exams}/>
+                  </div>
+                )}
+
+                {/* 시험 기록 목록 */}
+                {(selStudent.exams||[]).length === 0 && (
+                  <div style={{textAlign:"center",color:"#ccc",padding:"2rem 0",fontSize:13}}>아직 시험 기록이 없어요</div>
+                )}
+                {[...(selStudent.exams||[])].reverse().map((exam, ri) => {
+                  const idx = (selStudent.exams.length - 1) - ri;
+                  const total = SUBJECTS_ALL.reduce((s,k)=>s+(Number(exam.scores[k])||0),0);
+                  const cnt = SUBJECTS_ALL.filter(k=>Number(exam.scores[k])>0).length;
+                  return (
+                    <div key={ri} style={{background:"#f9f9f9",borderRadius:10,border:"1px solid #eee",padding:"12px 14px",marginBottom:10}}>
+                      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:10}}>
+                        <div style={{display:"flex",alignItems:"center",gap:8}}>
+                          <span style={{background:"#E8EAF6",color:"#3949AB",fontSize:11,fontWeight:700,padding:"3px 8px",borderRadius:10}}>{exam.examType}</span>
+                          <span style={{fontSize:12,color:"#aaa"}}>{exam.date}</span>
+                          {cnt>0&&<span style={{fontSize:12,color:"#5C6BC0",fontWeight:600}}>합계 {total}점 (평균 {Math.round(total/cnt)}점)</span>}
+                        </div>
+                        <button onClick={()=>deleteExam(idx)} style={{border:"none",background:"none",cursor:"pointer",color:"#EF5350",fontSize:11}}>삭제</button>
+                      </div>
+                      {/* 점수 */}
+                      <div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:8}}>
+                        {SUBJECTS_ALL.map(sub => exam.scores[sub]!==""&&exam.scores[sub]!==undefined?(
+                          <div key={sub} style={{textAlign:"center",padding:"6px 10px",background:exam.teachSubjects?.includes(sub)?"#E8EAF6":"#fff",borderRadius:8,border:`1px solid ${exam.teachSubjects?.includes(sub)?"#9FA8DA":"#eee"}`}}>
+                            <p style={{fontSize:9,color:"#888",marginBottom:2}}>{sub}{exam.teachSubjects?.includes(sub)&&" ★"}</p>
+                            <p style={{fontSize:15,fontWeight:700,color:"#333"}}>{exam.scores[sub]}</p>
+                            {exam.subjectGoals?.[sub]&&<p style={{fontSize:9,color:"#5C6BC0"}}>목표 {exam.subjectGoals[sub]}</p>}
+                          </div>
+                        ):null)}
+                      </div>
+                      {exam.totalGoal&&<p style={{fontSize:11,color:"#555",marginBottom:4}}>🎯 전체 목표: <strong>{exam.totalGoal}점</strong></p>}
+                      {exam.studentGoal&&<p style={{fontSize:11,color:"#555",marginBottom:4}}>💬 학생 목표: {exam.studentGoal}</p>}
+                      {/* 타과목 공부법 */}
+                      {SUBJECTS_ALL.some(s=>exam.studyMethods?.[s])&&(
+                        <div style={{marginTop:6,padding:"6px 10px",background:"#fff",borderRadius:6,border:"1px solid #eee"}}>
+                          <p style={{fontSize:10,color:"#aaa",marginBottom:4,fontWeight:600}}>타과목 학습 방법</p>
+                          <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+                            {SUBJECTS_ALL.map(s=>exam.studyMethods?.[s]?(
+                              <span key={s} style={{fontSize:10,color:"#555"}}>{s}: <strong>{exam.studyMethods[s]}</strong></span>
+                            ):null)}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* 학생 추가 모달 */}
+      {showAddStudent&&<Modal title="학생 추가" onClose={()=>setShowAddStudent(false)}>
+        <label><span style={lb}>학생 이름</span><input value={newStudentName} onChange={e=>setNewStudentName(e.target.value)} onKeyDown={e=>e.key==="Enter"&&addStudent()} placeholder="예) 홍길동" style={iSt}/></label>
+        <label><span style={lb}>학년</span><input value={newStudentGrade} onChange={e=>setNewStudentGrade(e.target.value)} placeholder="예) 중학교 2학년" style={iSt}/></label>
+        <div style={{display:"flex",gap:8,marginTop:8}}><button onClick={()=>setShowAddStudent(false)} style={cBt}>취소</button><button onClick={addStudent} style={sBt}>추가</button></div>
+      </Modal>}
+
+      {/* 시험 기록 모달 */}
+      {showAddExam&&<div style={{position:"fixed",inset:0,background:"#00000077",display:"flex",alignItems:"flex-start",justifyContent:"center",zIndex:200,overflowY:"auto",padding:"20px 0"}}>
+        <div style={{background:"#fff",borderRadius:14,padding:"1.5rem",width:500,maxWidth:"95vw",margin:"auto"}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
+            <h3 style={{fontSize:15,fontWeight:700,color:"#333"}}>📝 시험 기록 — {selStudent?.name}</h3>
+            <button onClick={()=>setShowAddExam(false)} style={{border:"none",background:"none",cursor:"pointer",fontSize:20,color:"#aaa"}}>×</button>
+          </div>
+
+          {/* 기본 정보 */}
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:14}}>
+            <label><span style={lb}>시험 종류</span>
+              <select value={examForm.examType} onChange={e=>setExamForm(f=>({...f,examType:e.target.value}))} style={iSt}>
+                {EXAM_TYPES.map(t=><option key={t}>{t}</option>)}
+              </select>
+            </label>
+            <label><span style={lb}>날짜</span>
+              <input type="date" value={examForm.date} onChange={e=>setExamForm(f=>({...f,date:e.target.value}))} style={iSt}/>
+            </label>
+          </div>
+
+          {/* 과목별 점수 */}
+          <p style={lb}>📊 과목별 점수</p>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:6,marginBottom:14}}>
+            {SUBJECTS_ALL.map(sub=>(
+              <label key={sub} style={{textAlign:"center"}}>
+                <span style={{fontSize:10,color:"#555",display:"block",marginBottom:3}}>{sub}</span>
+                <input value={examForm.scores[sub]} onChange={e=>setExamForm(f=>({...f,scores:{...f.scores,[sub]:e.target.value}}))}
+                  placeholder="—" type="number" min="0" max="100"
+                  style={{...iSt,textAlign:"center",padding:"6px 4px",fontSize:14,fontWeight:700}}/>
+              </label>
+            ))}
+          </div>
+
+          {/* 전체 목표 */}
+          <label><span style={lb}>🎯 전체 목표 점수 (합계)</span>
+            <input value={examForm.totalGoal} onChange={e=>setExamForm(f=>({...f,totalGoal:e.target.value}))} placeholder="예) 450" style={iSt}/>
+          </label>
+
+          {/* 내가 수업하는 과목 */}
+          <p style={{...lb,marginTop:6}}>⭐ 내가 수업하는 과목 (복수 선택)</p>
+          <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:10}}>
+            {SUBJECTS_ALL.map(sub=>(
+              <div key={sub} onClick={()=>toggleTeachSubject(sub)}
+                style={{padding:"5px 12px",borderRadius:20,border:`1.5px solid ${examForm.teachSubjects.includes(sub)?"#5C6BC0":"#ddd"}`,background:examForm.teachSubjects.includes(sub)?"#E8EAF6":"#f9f9f9",cursor:"pointer",fontSize:12,fontWeight:examForm.teachSubjects.includes(sub)?700:400,color:examForm.teachSubjects.includes(sub)?"#3949AB":"#666"}}>
+                {sub}
+              </div>
+            ))}
+          </div>
+
+          {/* 수업 과목별 목표 */}
+          {examForm.teachSubjects.length > 0 && (
+            <div style={{marginBottom:10}}>
+              <p style={lb}>수업 과목별 목표 점수</p>
+              <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:6}}>
+                {examForm.teachSubjects.map(sub=>(
+                  <label key={sub}>
+                    <span style={{fontSize:10,color:"#5C6BC0",display:"block",marginBottom:2}}>{sub} 목표</span>
+                    <input value={examForm.subjectGoals[sub]||""} onChange={e=>setExamForm(f=>({...f,subjectGoals:{...f.subjectGoals,[sub]:e.target.value}}))}
+                      placeholder="예) 85" type="number" min="0" max="100" style={{...iSt,padding:"6px 8px"}}/>
+                  </label>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* 학생 목표 */}
+          <label><span style={lb}>💬 학생의 목표 (자유 기입)</span>
+            <input value={examForm.studentGoal} onChange={e=>setExamForm(f=>({...f,studentGoal:e.target.value}))} placeholder="예) 수학 80점 이상, 전체 평균 75점" style={iSt}/>
+          </label>
+
+          {/* 타과목 공부법 */}
+          <p style={{...lb,marginTop:6}}>📖 타과목 학습 방법</p>
+          <div style={{display:"flex",flexDirection:"column",gap:6,marginBottom:14}}>
+            {SUBJECTS_ALL.map(sub=>(
+              <div key={sub} style={{display:"grid",gridTemplateColumns:"50px 1fr",gap:8,alignItems:"center"}}>
+                <span style={{fontSize:12,color:"#555",fontWeight:600}}>{sub}</span>
+                <select value={examForm.studyMethods[sub]||""} onChange={e=>setExamForm(f=>({...f,studyMethods:{...f.studyMethods,[sub]:e.target.value}}))} style={{...iSt,marginBottom:0}}>
+                  <option value="">— 선택 —</option>
+                  {STUDY_METHODS.map(m=><option key={m}>{m}</option>)}
+                </select>
+              </div>
+            ))}
+          </div>
+
+          <div style={{display:"flex",gap:8}}>
+            <button onClick={()=>setShowAddExam(false)} style={cBt}>취소</button>
+            <button onClick={saveExam} style={sBt}>저장</button>
+          </div>
+        </div>
+      </div>}
+    </div>
+  );
+}
+// ==================== /학생 관리 탭 ====================
+
 export default function App(){
   const [user,setUser]=useState(null);
   const [inp,setInp]=useState("");
@@ -875,7 +1236,7 @@ export default function App(){
         </div>
 
         <div className="tabs">
-          {[["calendar","📅"],["resource","📂"],["settle","💰"],["notice","📌"],["notice_gen","📄"],["free_lesson","🆓"],["exam_analysis","📊"],...(isAdmin?[["progress","👥"]]:[])]
+          {[["calendar","📅"],["resource","📂"],["settle","💰"],["notice","📌"],["notice_gen","📄"],["free_lesson","🆓"],["exam_analysis","📊"],["students","📚"],...(isAdmin?[["progress","👥"]]:[])]
             .map(([k,l])=><button key={k} className={`tab-btn${tab===k?" active":""}`} onClick={()=>setTab(k)} title={k}>{l}</button>)}
         </div>
 
@@ -991,6 +1352,7 @@ export default function App(){
           </div>
         )}
 
+        {tab==="students"&&<StudentTab coachName={user}/>}
         {tab==="notice_gen"&&<NoticeGen/>}
         {tab==="free_lesson"&&<FreeLessonNotice/>}
         {tab==="exam_analysis"&&<ExamAnalysis/>}
