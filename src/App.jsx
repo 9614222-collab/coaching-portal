@@ -14,8 +14,15 @@ const firebaseConfig = {
 const fbApp = initializeApp(firebaseConfig);
 const db = getFirestore(fbApp);
 
-const COACHES = ["김윤정","임서영","윤민정","나지수","서예린"];
+const COACHES_DEFAULT = ["김윤정","임서영","윤민정","나지수","서예린"];
 const ADMIN = "김윤정";
+
+async function loadCoaches(){
+  try{const d=await fbGet("settings","coaches");return(d&&d.list&&d.list.length>0)?d.list:COACHES_DEFAULT;}catch{return COACHES_DEFAULT;}
+}
+async function saveCoaches(list){
+  await fbSet("settings","coaches",{list});
+}
 
 const TASKS = [
   {id:"t1",title:"신입코치 영상 1",sub:"V-CAM",url:"https://vcampus.educo.co.kr/login",color:"#5C6BC0"},
