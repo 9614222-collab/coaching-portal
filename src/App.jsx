@@ -14,21 +14,22 @@ const firebaseConfig = {
 const fbApp = initializeApp(firebaseConfig);
 const db = getFirestore(fbApp);
 
-// 코치 목록: {name, isNew} 형태
-const COACHES_DEFAULT = [
-  {name:"김윤정",isNew:false},
-  {name:"임서영",isNew:true},
-  {name:"윤민정",isNew:true},
-  {name:"나지수",isNew:true},
-  {name:"서예린",isNew:true},
-];
+const COACHES_DEFAULT = ["김윤정","임서영","윤민정","나지수","서예린"];
 const ADMIN = "김윤정";
+
+async function loadCoaches(){
+  try{const d=await fbGet("settings","coaches");return(d&&d.list&&d.list.length>0)?d.list:COACHES_DEFAULT;}catch{return COACHES_DEFAULT;}
+}
+async function saveCoaches(list){
+  await fbSet("settings","coaches",{list});
+}
 
 const TASKS = [
   {id:"t1",title:"신입코치 영상 1",sub:"V-CAM",url:"https://vcampus.educo.co.kr/login",color:"#5C6BC0"},
   {id:"t2",title:"신입코치 영상 2",sub:"V-CAM",url:"https://vcampus.educo.co.kr/login",color:"#5C6BC0"},
   {id:"t3",title:"한국코칭심리협회 TLC 3급",sub:"IKCPA",url:"http://www.ikcpa.or.kr/",color:"#26A69A"},
   {id:"t4",title:"인생코칭",sub:"",url:"",color:"#EF5350"},
+
   {id:"t6",title:"퍼스트코칭",sub:"코칭존 사이트에서 신청",url:"",color:"#F57C00"},
   {id:"t7",title:"직무컨설팅",sub:"업무 1:1 학습 · 코칭존 사이트",url:"",color:"#F57C00"},
   {id:"t8",title:"타겟프로필 만들기",sub:"",url:"",color:"#7B1FA2"},
@@ -114,107 +115,6 @@ function Modal({title,onClose,children}){
   );
 }
 
-// ✅ ProgressTab: coaches/addCoach/removeCoach를 props로 받음
-function ProgressTab({ coaches, addCoach, removeCoach }){
-  const [allChecks, setAllChecks] = useState({});
-  const [newName, setNewName] = useState("");
-  const [newIsNew, setNewIsNew] = useState(true);
-  const coachList = coaches.filter(c => c.name !== ADMIN);
-
-  useEffect(()=>{
-    (async()=>{
-      const result={};
-      for(const coach of coachList){
-        const d=await fbGet("checks", coach.name);
-        result[coach.name]=d?d.data:{};
-      }
-      setAllChecks(result);
-    })();
-  },[coaches]);
-
-  async function handleAdd(){
-    const name = newName.trim();
-    if(!name){ alert("이름을 입력해 주세요."); return; }
-    if(coaches.some(c=>c.name===name)){ alert("이미 등록된 이름입니다."); return; }
-    await addCoach(name, newIsNew);
-    setNewName("");
-    setNewIsNew(true);
-  }
-
-  return(
-    <div className="card">
-      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:14}}>
-        <h3 style={{fontSize:15,fontWeight:600,color:"#333"}}>코치별 필수 과정 현황</h3>
-        <span style={{fontSize:12,color:"#aaa"}}>총 {coachList.length}명</span>
-      </div>
-
-      {/* 코치 추가 */}
-      <div style={{marginBottom:16,padding:"12px 14px",background:"#f0f7ff",borderRadius:10,border:"1px solid #BBDEFB"}}>
-        <div style={{display:"flex",gap:8,marginBottom:8}}>
-          <input
-            value={newName}
-            onChange={e=>setNewName(e.target.value)}
-            onKeyDown={e=>e.key==="Enter"&&handleAdd()}
-            placeholder="새 코치 이름 입력"
-            style={{flex:1,padding:"8px 10px",borderRadius:8,border:"1px solid #ddd",fontSize:13,marginBottom:0}}
-          />
-          <button onClick={handleAdd} style={{padding:"8px 16px",borderRadius:8,background:"#5C6BC0",color:"#fff",border:"none",cursor:"pointer",fontWeight:600,fontSize:13,flexShrink:0}}>
-            + 추가
-          </button>
-        </div>
-        {/* 신입 여부 체크박스 */}
-        <div onClick={()=>setNewIsNew(v=>!v)} style={{display:"flex",alignItems:"center",gap:8,cursor:"pointer",width:"fit-content"}}>
-          <div style={{width:18,height:18,borderRadius:4,border:`2px solid ${newIsNew?"#5C6BC0":"#ccc"}`,background:newIsNew?"#5C6BC0":"transparent",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
-            {newIsNew&&<span style={{color:"#fff",fontSize:11}}>✓</span>}
-          </div>
-          <span style={{fontSize:12,color:"#555"}}>신입 코치 <span style={{color:"#aaa"}}>(체크 시 필수과정 표시됨)</span></span>
-        </div>
-      </div>
-
-      {coachList.length === 0 && (
-        <p style={{textAlign:"center",color:"#aaa",fontSize:13,padding:"1.5rem 0"}}>등록된 코치가 없습니다.</p>
-      )}
-
-      {coachList.map(coach=>{
-        const ck=allChecks[coach.name]||{};
-        const done=TASKS.filter(t=>ck[t.id]).length;
-        const pct=Math.round(done/TASKS.length*100);
-        return(
-          <div key={coach.name} style={{background:"#f9f9f9",borderRadius:10,border:"1px solid #eee",padding:"12px 14px",marginBottom:12}}>
-            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:8}}>
-              <div style={{display:"flex",alignItems:"center",gap:8}}>
-                <div style={{width:32,height:32,borderRadius:"50%",background:"#E8EAF6",display:"flex",alignItems:"center",justifyContent:"center",fontSize:13,fontWeight:600,color:"#3949AB"}}>{coach.name[0]}</div>
-                <div>
-                  <span style={{fontSize:14,fontWeight:600,color:"#333"}}>{coach.name}</span>
-                  <span style={{marginLeft:6,fontSize:10,padding:"2px 6px",borderRadius:8,background:coach.isNew?"#FFF9C4":"#E8F5E9",color:coach.isNew?"#F57F17":"#2E7D32",fontWeight:600}}>{coach.isNew?"신입":"기존"}</span>
-                </div>
-              </div>
-              <div style={{display:"flex",alignItems:"center",gap:8}}>
-                {coach.isNew&&<span style={{fontSize:12,padding:"3px 10px",borderRadius:20,background:pct===100?"#E8F5E9":pct>0?"#E3F2FD":"#f5f5f5",color:pct===100?"#2E7D32":pct>0?"#1565C0":"#aaa",fontWeight:600}}>
-                  {done}/{TASKS.length} {pct===100?"✓ 완료":pct>0?"진행중":"미시작"}
-                </span>}
-                <button onClick={()=>removeCoach(coach.name)} style={{padding:"3px 8px",borderRadius:6,background:"#fff0f0",color:"#EF5350",border:"1px solid #ffcdd2",cursor:"pointer",fontSize:11,fontWeight:600}}>삭제</button>
-              </div>
-            </div>
-            {coach.isNew&&<>
-              <div style={{background:"#e0e0e0",borderRadius:20,height:7,overflow:"hidden",marginBottom:10}}>
-                <div style={{height:"100%",width:pct+"%",background:pct===100?"#66BB6A":"#5C6BC0",borderRadius:20}}/>
-              </div>
-              <div style={{display:"flex",flexWrap:"wrap",gap:4}}>
-                {TASKS.map(t=>(
-                  <span key={t.id} style={{fontSize:10,padding:"3px 8px",borderRadius:10,background:ck[t.id]?"#E8F5E9":"#fff",color:ck[t.id]?"#2E7D32":"#aaa",border:`1px solid ${ck[t.id]?"#A5D6A7":"#eee"}`}}>
-                    {ck[t.id]?"✓ ":""}{t.title}
-                  </span>
-                ))}
-              </div>
-            </>}
-          </div>
-        );
-      })}
-    </div>
-  );
-}
-
 function ExamAnalysis(){
   const GEMINI_API_KEY = "AIzaSyB_EoXucejx_vg59VzHQdFZxlaEtX7CVl8";
   const [info,setInfo]=useState({studentName:"",grade:"",subject:"",examRange:"",unitName:"",schoolName:"",score:"",wrongQuestions:"",examPaperBase64s:[]});
@@ -293,11 +193,13 @@ function ExamAnalysis(){
 
   const iSt={width:"100%",padding:"8px 10px",borderRadius:8,border:"1px solid #ddd",fontSize:13,marginBottom:8,background:"#fafafa"};
   const lb={fontSize:11,color:"#555",fontWeight:600,marginBottom:4,display:"block"};
+  const COLORS=["#ef4444","#f59e0b","#10b981"];
 
   return(
     <div className="card">
       <h3 style={{fontSize:15,fontWeight:600,color:"#333",marginBottom:14}}>📊 시험분석 보고서</h3>
       <div style={{display:"grid",gridTemplateColumns:"380px 1fr",gap:20,alignItems:"start"}}>
+        {/* 입력 폼 */}
         <div style={{background:"#f8fafc",borderRadius:12,padding:20,border:"1px solid #e2e8f0"}}>
           <p style={{fontSize:13,fontWeight:600,color:"#4f46e5",marginBottom:14}}>📋 회원 정보 입력</p>
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
@@ -333,6 +235,7 @@ function ExamAnalysis(){
           <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
         </div>
 
+        {/* 미리보기 */}
         <div>
           {!analysis&&!loading&&<div style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",height:400,color:"#aaa",fontSize:14}}>
             <div style={{fontSize:48,marginBottom:12}}>📄</div>
@@ -356,6 +259,7 @@ function ExamAnalysis(){
 
             <div style={{background:"#e5e7eb",borderRadius:16,padding:16,overflowY:"auto",maxHeight:700}}>
               <div ref={reportRef} style={{background:"#fff",fontFamily:"'Malgun Gothic',sans-serif"}}>
+                {/* 1페이지 */}
                 <div style={{width:"100%",padding:"40px 36px",boxSizing:"border-box",position:"relative",minHeight:600}}>
                   <div style={{height:4,background:"#4f46e5",marginBottom:24}}/>
                   <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-end",marginBottom:24,paddingBottom:16,borderBottom:"3px solid #4f46e5"}}>
@@ -365,6 +269,8 @@ function ExamAnalysis(){
                     </div>
                     <p style={{fontSize:11,color:"#94a3b8"}}>발행일: {new Date().toLocaleDateString()}</p>
                   </div>
+
+                  {/* 학생 정보 */}
                   <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,background:"#f8fafc",padding:20,borderRadius:12,marginBottom:20,border:"1px solid #e2e8f0"}}>
                     {[["👤 이름/학년",`${info.studentName} (${info.grade})`],["📚 과목/성적",`${info.subject} (${info.score}점)`],["🏫 학교",info.schoolName],["📋 시험범위",info.examRange]].map(([l,v])=>(
                       <div key={l} style={{display:"flex",gap:10,alignItems:"center"}}>
@@ -376,6 +282,8 @@ function ExamAnalysis(){
                       </div>
                     ))}
                   </div>
+
+                  {/* 난이도 분포 + 출제 경향 */}
                   <div style={{display:"grid",gridTemplateColumns:"1fr 2fr",gap:16,marginBottom:20}}>
                     <div>
                       <p style={{fontSize:13,fontWeight:700,color:"#312e81",marginBottom:10}}>📊 난이도 분포</p>
@@ -396,6 +304,8 @@ function ExamAnalysis(){
                       <div style={{background:"#f8fafc",padding:14,borderRadius:10,border:"1px solid #e2e8f0",fontSize:11,color:"#475569",lineHeight:1.7,whiteSpace:"pre-wrap"}}>{analysis.trends}</div>
                     </div>
                   </div>
+
+                  {/* 문항 분석 */}
                   <p style={{fontSize:13,fontWeight:700,color:"#312e81",marginBottom:10}}>✅ 문항별 분석</p>
                   <div style={{border:"1px solid #e2e8f0",borderRadius:10,overflow:"hidden"}}>
                     <table style={{width:"100%",borderCollapse:"collapse",fontSize:11}}>
@@ -420,6 +330,8 @@ function ExamAnalysis(){
                     </table>
                   </div>
                 </div>
+
+                {/* 2페이지 */}
                 <div style={{width:"100%",padding:"40px 36px",boxSizing:"border-box",position:"relative",borderTop:"4px solid #e2e8f0"}}>
                   <div style={{height:4,background:"#4f46e5",marginBottom:24}}/>
                   <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-end",marginBottom:24,paddingBottom:16,borderBottom:"3px solid #4f46e5"}}>
@@ -429,6 +341,7 @@ function ExamAnalysis(){
                     </div>
                     <p style={{fontSize:11,color:"#94a3b8"}}>발행일: {new Date().toLocaleDateString()}</p>
                   </div>
+
                   <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16,marginBottom:20}}>
                     <div style={{background:"#ecfdf5",padding:20,borderRadius:12,border:"1px solid #a7f3d0"}}>
                       <p style={{fontSize:13,fontWeight:700,color:"#065f46",marginBottom:10}}>✅ 학습 성취 및 강점</p>
@@ -439,6 +352,7 @@ function ExamAnalysis(){
                       <p style={{fontSize:11,color:"#334155",lineHeight:1.7,whiteSpace:"pre-wrap"}}>{analysis.weaknesses}</p>
                     </div>
                   </div>
+
                   <div style={{background:"#1e1b4b",color:"#fff",padding:24,borderRadius:12,marginBottom:20,borderTop:"6px solid #6366f1"}}>
                     <p style={{fontSize:13,fontWeight:700,color:"#a5b4fc",marginBottom:10}}>📅 NEXT LEVEL CURRICULUM</p>
                     {isEditing?(
@@ -447,6 +361,7 @@ function ExamAnalysis(){
                       <p style={{fontSize:11,color:"#c7d2fe",lineHeight:1.7,whiteSpace:"pre-wrap"}}>{editCurriculum}</p>
                     )}
                   </div>
+
                   <div style={{background:"#fff",padding:20,borderRadius:12,border:"2px solid #e2e8f0"}}>
                     <p style={{fontSize:11,fontWeight:700,color:"#4f46e5",marginBottom:10}}>💬 COACH MESSAGE</p>
                     {isEditing?(
@@ -461,6 +376,66 @@ function ExamAnalysis(){
           </div>}
         </div>
       </div>
+    </div>
+  );
+}
+
+function ProgressTab(){
+  const coaches=COACHES.filter(c=>c!==ADMIN);
+  const [allChecks,setAllChecks]=useState({});
+  useEffect(()=>{
+    (async()=>{
+      const result={};
+      for(const coach of coaches){
+        const d=await fbGet("checks",coach);
+        result[coach]=d?d.data:{};
+      }
+      setAllChecks(result);
+    })();
+  },[]);
+  return(
+    <div className="card">
+      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:14}}>
+        <h3 style={{fontSize:15,fontWeight:600,color:"#333"}}>코치별 필수 과정 현황</h3>
+        <span style={{fontSize:12,color:"#aaa"}}>총 {coachList.length}명</span>
+      </div>
+
+      {/* 코치 추가 */}
+      <div style={{display:"flex",gap:8,marginBottom:16,padding:"12px 14px",background:"#f0f7ff",borderRadius:10,border:"1px solid #BBDEFB"}}>
+        <input value={newName} onChange={e=>setNewName(e.target.value)} onKeyDown={e=>e.key==="Enter"&&handleAdd()} placeholder="새 코치 이름 입력" style={{flex:1,padding:"8px 10px",borderRadius:8,border:"1px solid #ddd",fontSize:13,marginBottom:0}}/>
+        <button onClick={handleAdd} style={{padding:"8px 16px",borderRadius:8,background:"#5C6BC0",color:"#fff",border:"none",cursor:"pointer",fontWeight:600,fontSize:13,flexShrink:0}}>+ 추가</button>
+      </div>
+      {coachList.map(coach=>{
+        const ck=allChecks[coach]||{};
+        const done=TASKS.filter(t=>ck[t.id]).length;
+        const pct=Math.round(done/TASKS.length*100);
+        return(
+          <div key={coach} style={{background:"#f9f9f9",borderRadius:10,border:"1px solid #eee",padding:"12px 14px",marginBottom:12}}>
+            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:8}}>
+              <div style={{display:"flex",alignItems:"center",gap:8}}>
+                <div style={{width:32,height:32,borderRadius:"50%",background:"#E8EAF6",display:"flex",alignItems:"center",justifyContent:"center",fontSize:13,fontWeight:600,color:"#3949AB"}}>{coach[0]}</div>
+                <span style={{fontSize:14,fontWeight:600,color:"#333"}}>{coach}</span>
+              </div>
+              <div style={{display:"flex",alignItems:"center",gap:8}}>
+                <span style={{fontSize:12,padding:"3px 10px",borderRadius:20,background:pct===100?"#E8F5E9":pct>0?"#E3F2FD":"#f5f5f5",color:pct===100?"#2E7D32":pct>0?"#1565C0":"#aaa",fontWeight:600}}>
+                  {done}/{TASKS.length} {pct===100?"✓ 완료":pct>0?"진행중":"미시작"}
+                </span>
+                <button onClick={()=>removeCoach(coach)} style={{padding:"3px 8px",borderRadius:6,background:"#fff0f0",color:"#EF5350",border:"1px solid #ffcdd2",cursor:"pointer",fontSize:11,fontWeight:600}}>삭제</button>
+              </div>
+            </div>
+            <div style={{background:"#e0e0e0",borderRadius:20,height:7,overflow:"hidden",marginBottom:10}}>
+              <div style={{height:"100%",width:pct+"%",background:pct===100?"#66BB6A":"#5C6BC0",borderRadius:20}}/>
+            </div>
+            <div style={{display:"flex",flexWrap:"wrap",gap:4}}>
+              {TASKS.map(t=>(
+                <span key={t.id} style={{fontSize:10,padding:"3px 8px",borderRadius:10,background:ck[t.id]?"#E8F5E9":"#fff",color:ck[t.id]?"#2E7D32":"#aaa",border:`1px solid ${ck[t.id]?"#A5D6A7":"#eee"}`}}>
+                  {ck[t.id]?"✓ ":""}{t.title}
+                </span>
+              ))}
+            </div>
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -558,7 +533,7 @@ function FreeLessonNotice(){
 }
 
 function NoticeGen(){
-  const [form,setForm]=useState({name:"",grade:"",schoolLevel:"초등",type:"화상",subject:"영어",times:"2",duration:"60",days:"매주 화요일 오후 4시, 매주 목요일 오후 4시",firstDate:"",book:"",publisher:"",studentId:"",studentPw:"",fee:"",planning:false,showFee:true,teacherPhone:"010-1234-5678",managerPhone:"010-2800-1465"});
+  const [form,setForm]=useState({name:"",grade:"",schoolLevel:"초등",type:"화상",subject:"영어",times:"2",duration:"60",days:"매주 화요일 오후 4시, 매주 목요일 오후 4시",firstDate:"",book:"",publisher:"",studentId:"",studentPw:"",fee:"",planning:false,teacherPhone:"010-1234-5678",managerPhone:"010-2800-1465"});
   const [preview,setPreview]=useState(false);
   const [messages,setMessages]=useState(DEFAULT_MESSAGES.map(m=>({...m})));
   const [editingMsg,setEditingMsg]=useState(null);
@@ -597,12 +572,6 @@ function NoticeGen(){
               <div style={{width:20,height:20,borderRadius:4,border:`2px solid ${form.planning?"#7B1FA2":"#CE93D8"}`,background:form.planning?"#7B1FA2":"transparent",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>{form.planning&&<span style={{color:"#fff",fontSize:12}}>✓</span>}</div>
               <span style={{fontSize:13,fontWeight:600,color:"#4A148C"}}>플래닝 코칭 추가</span>
               <span style={{fontSize:12,color:"#7B1FA2"}}>+ 30,000원</span>
-            </div>
-            {/* 교육비 표시 여부 체크박스 */}
-            <div onClick={()=>set("showFee",!form.showFee)} style={{display:"flex",alignItems:"center",gap:10,padding:"10px 14px",background:"#E3F2FD",borderRadius:8,border:"1px solid #90CAF9",cursor:"pointer",gridColumn:"1/-1"}}>
-              <div style={{width:20,height:20,borderRadius:4,border:`2px solid ${form.showFee?"#1565C0":"#90CAF9"}`,background:form.showFee?"#1565C0":"transparent",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>{form.showFee&&<span style={{color:"#fff",fontSize:12}}>✓</span>}</div>
-              <span style={{fontSize:13,fontWeight:600,color:"#1565C0"}}>📊 교육비 칸 안내문에 포함하기</span>
-              <span style={{fontSize:12,color:"#1976D2"}}>체크 해제 시 안내문에서 교육비 숨김</span>
             </div>
             <div style={{background:"#f0f7ff",borderRadius:10,padding:"12px 16px",border:"1px solid #BBDEFB",display:"flex",alignItems:"center",justifyContent:"space-between",gridColumn:"1/-1"}}>
               <div>
@@ -684,11 +653,11 @@ function NoticeGen(){
                       <span style={{color:k==="수업 횟수"?"#1565C0":"#1a1a1a",fontWeight:k==="수업 횟수"?700:400}}>{v}</span>
                     </div>
                   ))}
-                  {form.showFee&&<div style={{marginTop:8,padding:"12px 16px",background:"#f0f7ff",borderRadius:8,textAlign:"right"}}>
+                  <div style={{marginTop:8,padding:"12px 16px",background:"#f0f7ff",borderRadius:8,textAlign:"right"}}>
                     <p style={{fontSize:11,color:"#888",marginBottom:2}}>□ 예상 월 수업료</p>
                     <p style={{fontSize:24,fontWeight:700,color:"#1565C0"}}>{fee}원</p>
                     <p style={{fontSize:10,color:"#aaa"}}>{form.type} · {form.schoolLevel}{form.planning?" + 플래닝":""}</p>
-                  </div>}
+                  </div>
                 </div>
               </div>
             </div>
@@ -708,6 +677,37 @@ function NoticeGen(){
                 <div style={{padding:"12px 16px",background:"#f9f9f9",borderRadius:8,textAlign:"center"}}><p style={{fontSize:11,color:"#888",marginBottom:6}}>홈페이지 (상상코칭)</p><p style={{fontSize:13,fontWeight:600}}>www.sscoaching.co.kr</p></div>
                 <div style={{padding:"12px 16px",background:"#f9f9f9",borderRadius:8,textAlign:"center"}}><p style={{fontSize:11,color:"#888",marginBottom:6}}>학생 아이디</p><p style={{fontSize:13,fontWeight:600}}>{form.studentId||"(미입력)"}</p></div>
                 <div style={{padding:"12px 16px",background:"#f9f9f9",borderRadius:8,textAlign:"center"}}><p style={{fontSize:11,color:"#888",marginBottom:6}}>학생 비밀번호</p><p style={{fontSize:13,fontWeight:600}}>{form.studentPw||"(미입력)"}</p></div>
+              </div>
+              <div style={{padding:"12px 16px",background:"#f9f9f9",borderRadius:8}}>
+                <p style={{fontSize:12,fontWeight:600,marginBottom:6}}>● 로그인 안내 및 비밀번호 발급</p>
+                <p style={{fontSize:11,color:"#555",marginBottom:4}}>1) 통합 회원전환을 하시면 위에 발급해드린 아이디는 <strong>사용이 불가</strong>하오니, 기존 아이디로 로그인하시길 추천드립니다.</p>
+                <p style={{fontSize:11,color:"#555",marginBottom:12}}>2) 비밀번호를 모르시는 경우, 비밀번호 찾기로 진행해 주세요</p>
+                <p style={{fontSize:12,fontWeight:600,marginBottom:8}}>● 비밀번호 찾기</p>
+                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
+                  <div style={{border:"1px solid #ddd",borderRadius:8,overflow:"hidden"}}>
+                    <div style={{background:"#1565C0",padding:"6px 10px",display:"flex",alignItems:"center",justifyContent:"space-between"}}><span style={{fontSize:10,color:"#fff",fontWeight:600}}>상상코칭 로그인</span><div style={{background:"#D32F2F",color:"#fff",fontSize:9,padding:"2px 6px",borderRadius:3,fontWeight:700}}>① 로그인</div></div>
+                    <div style={{padding:"10px",fontSize:10}}>
+                      <div style={{border:"1px solid #ddd",borderRadius:6,padding:"8px",marginBottom:6,background:"#fafafa"}}>
+                        <p style={{color:"#888",fontSize:9,marginBottom:4}}>로그인 해주세요!</p>
+                        <div style={{display:"flex",gap:6,marginBottom:6,fontSize:9,alignItems:"center"}}><span style={{background:"#1565C0",color:"#fff",padding:"1px 6px",borderRadius:3,fontSize:8}}>● 회원</span><span style={{fontSize:8,color:"#888"}}>선생님</span></div>
+                        <div style={{background:"#eee",height:16,borderRadius:3,marginBottom:4}}/><div style={{background:"#eee",height:16,borderRadius:3,marginBottom:6}}/>
+                        <div style={{background:"#1565C0",height:20,borderRadius:4,display:"flex",alignItems:"center",justifyContent:"center"}}><span style={{color:"#fff",fontSize:9,fontWeight:600}}>로그인</span></div>
+                      </div>
+                      <div style={{border:"2px solid #D32F2F",borderRadius:4,padding:"4px",textAlign:"center",fontSize:9,color:"#D32F2F",fontWeight:600}}>② 아이디/비밀번호 찾기</div>
+                    </div>
+                  </div>
+                  <div style={{border:"1px solid #ddd",borderRadius:8,overflow:"hidden"}}>
+                    <div style={{background:"#1565C0",padding:"6px 10px",display:"flex",alignItems:"center",justifyContent:"space-between"}}><span style={{fontSize:10,color:"#fff",fontWeight:600}}>비밀번호 찾기</span><div style={{background:"#D32F2F",color:"#fff",fontSize:9,padding:"2px 6px",borderRadius:3,fontWeight:700}}>③ 탭 클릭</div></div>
+                    <div style={{padding:"10px",fontSize:9,color:"#555",lineHeight:1.6}}>
+                      <div style={{background:"#FFF3E0",border:"1px solid #FFB74D",borderRadius:4,padding:"4px",marginBottom:6,fontSize:8,color:"#E65100"}}>▲ 아이디와 휴대전화번호가 일치해야 임시비밀번호가 발송됩니다.</div>
+                      <p style={{marginBottom:2,fontWeight:600}}>④ 아이디 입력</p>
+                      <div style={{border:"1px solid #ddd",borderRadius:3,padding:"3px 6px",marginBottom:6,color:"#aaa",fontSize:8}}>아이디 또는 이메일</div>
+                      <p style={{marginBottom:2,fontWeight:600}}>⑤ 법정대리인 선택</p>
+                      <div style={{border:"1px solid #ddd",borderRadius:3,padding:"3px 6px",marginBottom:6,color:"#aaa",fontSize:8}}>⑥ 휴대폰 번호 입력</div>
+                      <div style={{background:"#1a1a1a",borderRadius:4,padding:"5px",textAlign:"center"}}><span style={{color:"#fff",fontSize:9,fontWeight:600}}>⑦ 비밀번호 찾기</span></div>
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
@@ -774,367 +774,6 @@ function NoticeGen(){
   );
 }
 
-// ==================== 학생 관리 탭 ====================
-const SUBJECTS_ALL = ["국어","영어","수학","사회","과학"];
-const EXAM_TYPES = ["중간고사","기말고사","모의고사","단원평가","기타"];
-const STUDY_METHODS = ["학원","스스로 하기","과외","인강","학교 수업만"];
-
-function StudentTab({ coachName }) {
-  const [students, setStudents] = useState([]);
-  const [selStudent, setSelStudent] = useState(null);
-  const [showAddStudent, setShowAddStudent] = useState(false);
-  const [showAddExam, setShowAddExam] = useState(false);
-  const [newStudentName, setNewStudentName] = useState("");
-  const [newStudentGrade, setNewStudentGrade] = useState("");
-  const [loading, setLoading] = useState(true);
-
-  // 새 시험 기록 폼
-  const [examForm, setExamForm] = useState({
-    examType: "중간고사",
-    date: new Date().toISOString().slice(0,10),
-    scores: { 국어:"", 영어:"", 수학:"", 사회:"", 과학:"" },
-    totalGoal: "",
-    teachSubjects: [],
-    subjectGoals: {},
-    studentGoal: "",
-    studyMethods: { 국어:"", 영어:"", 수학:"", 사회:"", 과학:"" },
-  });
-
-  useEffect(() => {
-    loadStudents();
-  }, [coachName]);
-
-  async function loadStudents() {
-    setLoading(true);
-    const all = await fbGetAll(`students_${coachName}`);
-    setStudents(all.sort((a,b) => a.name.localeCompare(b.name)));
-    setLoading(false);
-  }
-
-  async function addStudent() {
-    const name = newStudentName.trim();
-    const grade = newStudentGrade.trim();
-    if (!name) return;
-    const id = await fbAdd(`students_${coachName}`, { name, grade, exams: [] });
-    if (id) {
-      const s = { id, name, grade, exams: [] };
-      setStudents(v => [...v, s]);
-      setSelStudent(s);
-    }
-    setNewStudentName(""); setNewStudentGrade("");
-    setShowAddStudent(false);
-  }
-
-  async function deleteStudent(sid) {
-    if (!window.confirm("이 학생을 삭제하시겠습니까?")) return;
-    await fbDel(`students_${coachName}`, sid);
-    setStudents(v => v.filter(s => s.id !== sid));
-    if (selStudent?.id === sid) setSelStudent(null);
-  }
-
-  async function saveExam() {
-    if (!selStudent) return;
-    const exam = { ...examForm, savedAt: Date.now() };
-    const exams = [...(selStudent.exams || []), exam];
-    const updated = { ...selStudent, exams };
-    await fbSet(`students_${coachName}`, selStudent.id, updated);
-    setStudents(v => v.map(s => s.id === selStudent.id ? updated : s));
-    setSelStudent(updated);
-    setShowAddExam(false);
-    setExamForm({
-      examType:"중간고사", date:new Date().toISOString().slice(0,10),
-      scores:{국어:"",영어:"",수학:"",사회:"",과학:""},
-      totalGoal:"", teachSubjects:[], subjectGoals:{},
-      studentGoal:"", studyMethods:{국어:"",영어:"",수학:"",사회:"",과학:""},
-    });
-  }
-
-  async function deleteExam(examIdx) {
-    if (!window.confirm("이 기록을 삭제하시겠습니까?")) return;
-    const exams = selStudent.exams.filter((_,i) => i !== examIdx);
-    const updated = { ...selStudent, exams };
-    await fbSet(`students_${coachName}`, selStudent.id, updated);
-    setStudents(v => v.map(s => s.id === selStudent.id ? updated : s));
-    setSelStudent(updated);
-  }
-
-  function toggleTeachSubject(sub) {
-    setExamForm(f => {
-      const has = f.teachSubjects.includes(sub);
-      return {
-        ...f,
-        teachSubjects: has ? f.teachSubjects.filter(s=>s!==sub) : [...f.teachSubjects, sub],
-        subjectGoals: has ? (() => { const g={...f.subjectGoals}; delete g[sub]; return g; })() : f.subjectGoals,
-      };
-    });
-  }
-
-  // 그래프: 과목별 점수 추이
-  function ScoreGraph({ exams }) {
-    if (!exams || exams.length === 0) return null;
-    const W = 580, H = 200, PAD = { t:20, r:20, b:40, l:40 };
-    const gW = W - PAD.l - PAD.r, gH = H - PAD.t - PAD.b;
-    const colors = { 국어:"#EF5350", 영어:"#1565C0", 수학:"#F57C00", 사회:"#2E7D32", 과학:"#7B1FA2" };
-    const pts = exams.map((e,i) => ({ label:`${e.examType}(${e.date?.slice(5)||""})`, scores:e.scores, i }));
-    const allVals = pts.flatMap(p => SUBJECTS_ALL.map(s => Number(p.scores[s])||0).filter(v=>v>0));
-    const minV = Math.max(0, Math.min(...allVals) - 10);
-    const maxV = Math.min(100, Math.max(...allVals) + 5);
-    const xStep = pts.length > 1 ? gW / (pts.length-1) : gW/2;
-    function yPos(v) { return PAD.t + gH - ((v - minV)/(maxV - minV)) * gH; }
-    function xPos(i) { return PAD.l + (pts.length > 1 ? i * xStep : gW/2); }
-
-    return (
-      <div style={{overflowX:"auto",marginBottom:16}}>
-        <svg width={W} height={H} style={{display:"block",minWidth:W}}>
-          {/* 격자 */}
-          {[0,25,50,75,100].map(v => {
-            const y = yPos(Math.min(maxV, Math.max(minV, v)));
-            if (v < minV || v > maxV) return null;
-            return <g key={v}>
-              <line x1={PAD.l} y1={y} x2={W-PAD.r} y2={y} stroke="#eee" strokeWidth={1}/>
-              <text x={PAD.l-4} y={y+4} fontSize={9} fill="#aaa" textAnchor="end">{v}</text>
-            </g>;
-          })}
-          {/* 선 + 점 */}
-          {SUBJECTS_ALL.map(sub => {
-            const validPts = pts.filter(p => Number(p.scores[sub]) > 0);
-            if (validPts.length === 0) return null;
-            const pathD = validPts.map((p,i) => `${i===0?"M":"L"}${xPos(p.i)},${yPos(Number(p.scores[sub]))}`).join(" ");
-            return <g key={sub}>
-              <path d={pathD} fill="none" stroke={colors[sub]} strokeWidth={2} strokeLinejoin="round"/>
-              {validPts.map(p => (
-                <g key={p.i}>
-                  <circle cx={xPos(p.i)} cy={yPos(Number(p.scores[sub]))} r={4} fill={colors[sub]}/>
-                  <text x={xPos(p.i)} y={yPos(Number(p.scores[sub]))-7} fontSize={9} fill={colors[sub]} textAnchor="middle" fontWeight="600">{p.scores[sub]}</text>
-                </g>
-              ))}
-            </g>;
-          })}
-          {/* x축 라벨 */}
-          {pts.map((p,i) => (
-            <text key={i} x={xPos(i)} y={H-6} fontSize={9} fill="#888" textAnchor="middle">{p.label}</text>
-          ))}
-        </svg>
-        {/* 범례 */}
-        <div style={{display:"flex",gap:12,flexWrap:"wrap",marginTop:6}}>
-          {SUBJECTS_ALL.map(sub=>(
-            <div key={sub} style={{display:"flex",alignItems:"center",gap:4}}>
-              <div style={{width:10,height:10,borderRadius:"50%",background:colors[sub]}}/>
-              <span style={{fontSize:11,color:"#555"}}>{sub}</span>
-            </div>
-          ))}
-        </div>
-      </div>
-    );
-  }
-
-  const lb = {fontSize:11,color:"#555",fontWeight:600,marginBottom:3,display:"block"};
-  const iSt = {padding:"7px 10px",borderRadius:8,border:"1px solid #ddd",fontSize:13,marginBottom:0,background:"#fafafa",width:"100%"};
-
-  return (
-    <div className="card">
-      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:14}}>
-        <h3 style={{fontSize:15,fontWeight:600,color:"#333"}}>📚 학생 성적 관리</h3>
-        <button onClick={()=>setShowAddStudent(true)} style={{padding:"6px 14px",borderRadius:8,background:"#5C6BC0",color:"#fff",border:"none",cursor:"pointer",fontWeight:600,fontSize:13}}>+ 학생 추가</button>
-      </div>
-
-      {loading && <p style={{textAlign:"center",color:"#aaa",padding:"2rem 0"}}>불러오는 중...</p>}
-
-      {!loading && (
-        <div style={{display:"grid",gridTemplateColumns:"180px 1fr",gap:16,alignItems:"start"}}>
-          {/* 학생 목록 */}
-          <div>
-            <p style={{fontSize:11,color:"#aaa",fontWeight:600,marginBottom:8}}>학생 목록 ({students.length}명)</p>
-            {students.length === 0 && <p style={{fontSize:12,color:"#ccc",textAlign:"center",padding:"1rem 0"}}>학생 없음</p>}
-            {students.map(s => (
-              <div key={s.id} onClick={()=>setSelStudent(s)}
-                style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"8px 10px",borderRadius:8,background:selStudent?.id===s.id?"#E8EAF6":"#f9f9f9",border:`1px solid ${selStudent?.id===s.id?"#5C6BC0":"#eee"}`,marginBottom:6,cursor:"pointer"}}>
-                <div>
-                  <p style={{fontSize:13,fontWeight:600,color:selStudent?.id===s.id?"#3949AB":"#333"}}>{s.name}</p>
-                  <p style={{fontSize:10,color:"#aaa"}}>{s.grade||"학년 미입력"}</p>
-                </div>
-                <button onClick={e=>{e.stopPropagation();deleteStudent(s.id);}} style={{border:"none",background:"none",cursor:"pointer",color:"#EF5350",fontSize:12}}>✕</button>
-              </div>
-            ))}
-          </div>
-
-          {/* 학생 상세 */}
-          <div>
-            {!selStudent && <div style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",height:300,color:"#ccc",fontSize:13}}>
-              <div style={{fontSize:40,marginBottom:10}}>👈</div>
-              <p>학생을 선택하세요</p>
-            </div>}
-
-            {selStudent && (
-              <div>
-                <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:14}}>
-                  <div>
-                    <h4 style={{fontSize:16,fontWeight:700,color:"#333"}}>{selStudent.name}</h4>
-                    <p style={{fontSize:12,color:"#888"}}>{selStudent.grade}</p>
-                  </div>
-                  <button onClick={()=>setShowAddExam(true)} style={{padding:"6px 14px",borderRadius:8,background:"#4CAF50",color:"#fff",border:"none",cursor:"pointer",fontWeight:600,fontSize:13}}>+ 시험 기록</button>
-                </div>
-
-                {/* 그래프 */}
-                {(selStudent.exams||[]).length > 0 && (
-                  <div style={{background:"#f8fafc",borderRadius:10,padding:14,border:"1px solid #e2e8f0",marginBottom:14}}>
-                    <p style={{fontSize:12,fontWeight:700,color:"#5C6BC0",marginBottom:10}}>📈 점수 추이</p>
-                    <ScoreGraph exams={selStudent.exams}/>
-                  </div>
-                )}
-
-                {/* 시험 기록 목록 */}
-                {(selStudent.exams||[]).length === 0 && (
-                  <div style={{textAlign:"center",color:"#ccc",padding:"2rem 0",fontSize:13}}>아직 시험 기록이 없어요</div>
-                )}
-                {[...(selStudent.exams||[])].reverse().map((exam, ri) => {
-                  const idx = (selStudent.exams.length - 1) - ri;
-                  const total = SUBJECTS_ALL.reduce((s,k)=>s+(Number(exam.scores[k])||0),0);
-                  const cnt = SUBJECTS_ALL.filter(k=>Number(exam.scores[k])>0).length;
-                  return (
-                    <div key={ri} style={{background:"#f9f9f9",borderRadius:10,border:"1px solid #eee",padding:"12px 14px",marginBottom:10}}>
-                      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:10}}>
-                        <div style={{display:"flex",alignItems:"center",gap:8}}>
-                          <span style={{background:"#E8EAF6",color:"#3949AB",fontSize:11,fontWeight:700,padding:"3px 8px",borderRadius:10}}>{exam.examType}</span>
-                          <span style={{fontSize:12,color:"#aaa"}}>{exam.date}</span>
-                          {cnt>0&&<span style={{fontSize:12,color:"#5C6BC0",fontWeight:600}}>합계 {total}점 (평균 {Math.round(total/cnt)}점)</span>}
-                        </div>
-                        <button onClick={()=>deleteExam(idx)} style={{border:"none",background:"none",cursor:"pointer",color:"#EF5350",fontSize:11}}>삭제</button>
-                      </div>
-                      {/* 점수 */}
-                      <div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:8}}>
-                        {SUBJECTS_ALL.map(sub => exam.scores[sub]!==""&&exam.scores[sub]!==undefined?(
-                          <div key={sub} style={{textAlign:"center",padding:"6px 10px",background:exam.teachSubjects?.includes(sub)?"#E8EAF6":"#fff",borderRadius:8,border:`1px solid ${exam.teachSubjects?.includes(sub)?"#9FA8DA":"#eee"}`}}>
-                            <p style={{fontSize:9,color:"#888",marginBottom:2}}>{sub}{exam.teachSubjects?.includes(sub)&&" ★"}</p>
-                            <p style={{fontSize:15,fontWeight:700,color:"#333"}}>{exam.scores[sub]}</p>
-                            {exam.subjectGoals?.[sub]&&<p style={{fontSize:9,color:"#5C6BC0"}}>목표 {exam.subjectGoals[sub]}</p>}
-                          </div>
-                        ):null)}
-                      </div>
-                      {exam.totalGoal&&<p style={{fontSize:11,color:"#555",marginBottom:4}}>🎯 전체 목표: <strong>{exam.totalGoal}점</strong></p>}
-                      {exam.studentGoal&&<p style={{fontSize:11,color:"#555",marginBottom:4}}>💬 학생 목표: {exam.studentGoal}</p>}
-                      {/* 타과목 공부법 */}
-                      {SUBJECTS_ALL.some(s=>exam.studyMethods?.[s])&&(
-                        <div style={{marginTop:6,padding:"6px 10px",background:"#fff",borderRadius:6,border:"1px solid #eee"}}>
-                          <p style={{fontSize:10,color:"#aaa",marginBottom:4,fontWeight:600}}>타과목 학습 방법</p>
-                          <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
-                            {SUBJECTS_ALL.map(s=>exam.studyMethods?.[s]?(
-                              <span key={s} style={{fontSize:10,color:"#555"}}>{s}: <strong>{exam.studyMethods[s]}</strong></span>
-                            ):null)}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* 학생 추가 모달 */}
-      {showAddStudent&&<Modal title="학생 추가" onClose={()=>setShowAddStudent(false)}>
-        <label><span style={lb}>학생 이름</span><input value={newStudentName} onChange={e=>setNewStudentName(e.target.value)} onKeyDown={e=>e.key==="Enter"&&addStudent()} placeholder="예) 홍길동" style={iSt}/></label>
-        <label><span style={lb}>학년</span><input value={newStudentGrade} onChange={e=>setNewStudentGrade(e.target.value)} placeholder="예) 중학교 2학년" style={iSt}/></label>
-        <div style={{display:"flex",gap:8,marginTop:8}}><button onClick={()=>setShowAddStudent(false)} style={cBt}>취소</button><button onClick={addStudent} style={sBt}>추가</button></div>
-      </Modal>}
-
-      {/* 시험 기록 모달 */}
-      {showAddExam&&<div style={{position:"fixed",inset:0,background:"#00000077",display:"flex",alignItems:"flex-start",justifyContent:"center",zIndex:200,overflowY:"auto",padding:"20px 0"}}>
-        <div style={{background:"#fff",borderRadius:14,padding:"1.5rem",width:500,maxWidth:"95vw",margin:"auto"}}>
-          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
-            <h3 style={{fontSize:15,fontWeight:700,color:"#333"}}>📝 시험 기록 — {selStudent?.name}</h3>
-            <button onClick={()=>setShowAddExam(false)} style={{border:"none",background:"none",cursor:"pointer",fontSize:20,color:"#aaa"}}>×</button>
-          </div>
-
-          {/* 기본 정보 */}
-          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:14}}>
-            <label><span style={lb}>시험 종류</span>
-              <select value={examForm.examType} onChange={e=>setExamForm(f=>({...f,examType:e.target.value}))} style={iSt}>
-                {EXAM_TYPES.map(t=><option key={t}>{t}</option>)}
-              </select>
-            </label>
-            <label><span style={lb}>날짜</span>
-              <input type="date" value={examForm.date} onChange={e=>setExamForm(f=>({...f,date:e.target.value}))} style={iSt}/>
-            </label>
-          </div>
-
-          {/* 과목별 점수 */}
-          <p style={lb}>📊 과목별 점수</p>
-          <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:6,marginBottom:14}}>
-            {SUBJECTS_ALL.map(sub=>(
-              <label key={sub} style={{textAlign:"center"}}>
-                <span style={{fontSize:10,color:"#555",display:"block",marginBottom:3}}>{sub}</span>
-                <input value={examForm.scores[sub]} onChange={e=>setExamForm(f=>({...f,scores:{...f.scores,[sub]:e.target.value}}))}
-                  placeholder="—" type="number" min="0" max="100"
-                  style={{...iSt,textAlign:"center",padding:"6px 4px",fontSize:14,fontWeight:700}}/>
-              </label>
-            ))}
-          </div>
-
-          {/* 전체 목표 */}
-          <label><span style={lb}>🎯 전체 목표 점수 (합계)</span>
-            <input value={examForm.totalGoal} onChange={e=>setExamForm(f=>({...f,totalGoal:e.target.value}))} placeholder="예) 450" style={iSt}/>
-          </label>
-
-          {/* 내가 수업하는 과목 */}
-          <p style={{...lb,marginTop:6}}>⭐ 내가 수업하는 과목 (복수 선택)</p>
-          <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:10}}>
-            {SUBJECTS_ALL.map(sub=>(
-              <div key={sub} onClick={()=>toggleTeachSubject(sub)}
-                style={{padding:"5px 12px",borderRadius:20,border:`1.5px solid ${examForm.teachSubjects.includes(sub)?"#5C6BC0":"#ddd"}`,background:examForm.teachSubjects.includes(sub)?"#E8EAF6":"#f9f9f9",cursor:"pointer",fontSize:12,fontWeight:examForm.teachSubjects.includes(sub)?700:400,color:examForm.teachSubjects.includes(sub)?"#3949AB":"#666"}}>
-                {sub}
-              </div>
-            ))}
-          </div>
-
-          {/* 수업 과목별 목표 */}
-          {examForm.teachSubjects.length > 0 && (
-            <div style={{marginBottom:10}}>
-              <p style={lb}>수업 과목별 목표 점수</p>
-              <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:6}}>
-                {examForm.teachSubjects.map(sub=>(
-                  <label key={sub}>
-                    <span style={{fontSize:10,color:"#5C6BC0",display:"block",marginBottom:2}}>{sub} 목표</span>
-                    <input value={examForm.subjectGoals[sub]||""} onChange={e=>setExamForm(f=>({...f,subjectGoals:{...f.subjectGoals,[sub]:e.target.value}}))}
-                      placeholder="예) 85" type="number" min="0" max="100" style={{...iSt,padding:"6px 8px"}}/>
-                  </label>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* 학생 목표 */}
-          <label><span style={lb}>💬 학생의 목표 (자유 기입)</span>
-            <input value={examForm.studentGoal} onChange={e=>setExamForm(f=>({...f,studentGoal:e.target.value}))} placeholder="예) 수학 80점 이상, 전체 평균 75점" style={iSt}/>
-          </label>
-
-          {/* 타과목 공부법 */}
-          <p style={{...lb,marginTop:6}}>📖 타과목 학습 방법</p>
-          <div style={{display:"flex",flexDirection:"column",gap:6,marginBottom:14}}>
-            {SUBJECTS_ALL.map(sub=>(
-              <div key={sub} style={{display:"grid",gridTemplateColumns:"50px 1fr",gap:8,alignItems:"center"}}>
-                <span style={{fontSize:12,color:"#555",fontWeight:600}}>{sub}</span>
-                <select value={examForm.studyMethods[sub]||""} onChange={e=>setExamForm(f=>({...f,studyMethods:{...f.studyMethods,[sub]:e.target.value}}))} style={{...iSt,marginBottom:0}}>
-                  <option value="">— 선택 —</option>
-                  {STUDY_METHODS.map(m=><option key={m}>{m}</option>)}
-                </select>
-              </div>
-            ))}
-          </div>
-
-          <div style={{display:"flex",gap:8}}>
-            <button onClick={()=>setShowAddExam(false)} style={cBt}>취소</button>
-            <button onClick={saveExam} style={sBt}>저장</button>
-          </div>
-        </div>
-      </div>}
-    </div>
-  );
-}
-// ==================== /학생 관리 탭 ====================
-
 export default function App(){
   const [user,setUser]=useState(null);
   const [inp,setInp]=useState("");
@@ -1152,59 +791,35 @@ export default function App(){
   const [newEv,setNewEv]=useState({title:"",date:"",desc:""});
   const [newNt,setNewNt]=useState({title:"",content:""});
   const [selDay,setSelDay]=useState(null);
-  const [coaches,setCoaches]=useState(COACHES_DEFAULT);
 
-  // Firebase에서 코치 목록 불러오기
+  const [coaches, setCoaches] = useState(COACHES);
+
   useEffect(()=>{
     (async()=>{
-      const d=await fbGet("settings","coaches");
-      if(d?.list?.length){
-        // 구버전(문자열 배열) → 신버전({name,isNew}) 자동 변환
-        const normalized = d.list.map(c =>
-          typeof c === "string" ? {name:c, isNew:true} : c
-        );
-        setCoaches(normalized);
-        // 변환된 데이터를 Firebase에 다시 저장
-        await fbSet("settings","coaches",{list:normalized});
-      } else {
-        setCoaches(COACHES_DEFAULT);
-      }
+      const d = await fbGet("settings","coaches");
+      if(d && d.list) setCoaches(d.list);
+      else setCoaches(COACHES);
     })();
   },[]);
 
   useEffect(()=>{
     if(!user)return;
-    (async()=>{
-      const d=await fbGet("checks",user);setChecks(d?d.data:{});
-      const ev=await fbGetAll("events");setEvents(ev);
-      const nt=await fbGetAll("notices");setNotices(nt.sort((a,b)=>b.createdAt-a.createdAt));
-    })();
+    (async()=>{const d=await fbGet("checks",user);setChecks(d?d.data:{});})();
   },[user]);
 
-  async function addCoach(name, isNew=true){
-    const next=[...coaches, {name, isNew}];
+  async function addCoach(name){
+    const next=[...coaches, name];
     setCoaches(next);
     await fbSet("settings","coaches",{list:next});
   }
-
   async function removeCoach(name){
     if(name===ADMIN){alert("관리자는 삭제할 수 없어요!");return;}
-    if(!window.confirm(`'${name}' 코치를 삭제하시겠습니까?`))return;
-    const next=coaches.filter(c=>c.name!==name);
+    const next=coaches.filter(c=>c!==name);
     setCoaches(next);
     await fbSet("settings","coaches",{list:next});
   }
 
-  function login(){
-    const n=inp.trim();
-    if(!n){setErr("이름을 입력해 주세요.");return;}
-    if(!coaches.some(c=>c.name===n)){setErr("등록되지 않은 이름입니다.");return;}
-    setUser(n);
-  }
-
-  // 현재 로그인한 코치가 신입인지
-  const isNewCoach = coaches.find(c=>c.name===user)?.isNew ?? true;
-
+  function login(){const n=inp.trim();if(!n){setErr("이름을 입력해 주세요.");return;}if(!(coaches||COACHES_DEFAULT).includes(n)){setErr("등록되지 않은 이름입니다.");return;}setUser(n);}
   async function toggleCheck(id){const next={...checks,[id]:!checks[id]};setChecks(next);await fbSet("checks",user,{data:next});}
   async function addEvent(){if(!newEv.title||!newEv.date)return;const id=await fbAdd("events",{...newEv,createdAt:Date.now()});if(id)setEvents(v=>[...v,{...newEv,id}]);setNewEv({title:"",date:"",desc:""});setShowEv(false);}
   async function delEvent(id){await fbDel("events",id);setEvents(v=>v.filter(e=>e.id!==id));setSelDay(null);}
@@ -1217,6 +832,7 @@ export default function App(){
   function isToday(d){return d===today.getDate()&&m===today.getMonth()&&y===today.getFullYear();}
 
   const isAdmin=user===ADMIN;
+  const coachesList=coaches||COACHES_DEFAULT;
   const done=TASKS.filter(t=>checks[t.id]).length;
   const filtRes=resCat==="전체"?RESOURCES:RESOURCES.filter(r=>r.category===resCat);
 
@@ -1249,7 +865,7 @@ export default function App(){
           <button onClick={()=>{setUser(null);setChecks({});}} style={{fontSize:12,padding:"6px 12px",borderRadius:8,cursor:"pointer",background:"#f5f5f5",border:"1px solid #ddd",color:"#666"}}>로그아웃</button>
         </div>
 
-        {isNewCoach&&<div className="card">
+        <div className="card">
           <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12}}>
             <h3 style={{fontSize:15,fontWeight:600,color:"#333"}}>신입코치 필수 과정</h3>
             <span style={{fontSize:12,background:done===TASKS.length?"#E8F5E9":"#f5f5f5",color:done===TASKS.length?"#2E7D32":"#888",padding:"3px 10px",borderRadius:20,fontWeight:600}}>{done} / {TASKS.length} 완료</span>
@@ -1266,10 +882,10 @@ export default function App(){
               {t.url&&<a href={t.url} target="_blank" rel="noreferrer" style={{fontSize:11,padding:"3px 8px",borderRadius:6,background:t.color+"18",color:t.color,border:`1px solid ${t.color}33`,textDecoration:"none",flexShrink:0}}>바로가기</a>}
             </div>
           ))}
-        </div>}
+        </div>
 
         <div className="tabs">
-          {[["calendar","📅"],["resource","📂"],["settle","💰"],["notice","📌"],["notice_gen","📄"],["free_lesson","🆓"],["exam_analysis","📊"],["students","📚"],...(isAdmin?[["progress","👥"]]:[])]
+          {[["calendar","📅"],["resource","📂"],["settle","💰"],["notice","📌"],["notice_gen","📄"],["free_lesson","🆓"],["exam_analysis","📊"],...(isAdmin?[["progress","👥"]]:[])]
             .map(([k,l])=><button key={k} className={`tab-btn${tab===k?" active":""}`} onClick={()=>setTab(k)} title={k}>{l}</button>)}
         </div>
 
@@ -1385,17 +1001,10 @@ export default function App(){
           </div>
         )}
 
-        {tab==="students"&&<StudentTab coachName={user}/>}
         {tab==="notice_gen"&&<NoticeGen/>}
         {tab==="free_lesson"&&<FreeLessonNotice/>}
         {tab==="exam_analysis"&&<ExamAnalysis/>}
-        {tab==="progress"&&isAdmin&&(
-          <ProgressTab
-            coaches={coaches}
-            addCoach={addCoach}
-            removeCoach={removeCoach}
-          />
-        )}
+        {tab==="progress"&&isAdmin&&<ProgressTab coaches={coachesList} addCoach={addCoach} removeCoach={removeCoach}/>}
 
         {showEv&&<Modal title="일정 추가" onClose={()=>setShowEv(false)}>
           <input value={newEv.title} onChange={e=>setNewEv(v=>({...v,title:e.target.value}))} placeholder="일정 제목"/>
