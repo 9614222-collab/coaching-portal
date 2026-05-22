@@ -13,8 +13,14 @@ async function sSet(key,val){
 async function sDel(key){
   try{await window.storage.delete(key);}catch(e){console.error(e);}
 }
-async function sList(prefix){
-  try{const r=await window.storage.list(prefix);return r?r.keys:[];}catch{return[];}
+
+// 전체 앱 데이터를 하나의 키로 관리
+async function loadAppData(){
+  const d = await sGet("app_data");
+  return d || {coaches: COACHES_DEFAULT, events: [], notices: {}, checks: {}};
+}
+async function saveAppData(data){
+  await sSet("app_data", data);
 }
 
 const TASKS = [
@@ -273,10 +279,10 @@ function ProgressTab({coaches,addCoach,removeCoach}){
 
   useEffect(()=>{
     (async()=>{
+      const d=await loadAppData();
       const result={};
       for(const coach of coachList){
-        const d=await sGet(`checks:${coach}`);
-        result[coach]=d||{};
+        result[coach]=(d.checks||{})[coach]||{};
       }
       setAllChecks(result);
     })();
@@ -577,34 +583,48 @@ export default function App(){
   const [selDay,setSelDay]=useState(null);
   const [coaches,setCoaches]=useState(COACHES_DEFAULT);
   const [loading,setLoading]=useState(true);
+  const [appData,setAppData]=useState({coaches:COACHES_DEFAULT,events:[],notices:{},checks:{}});
 
+  // 앱 데이터 전체 로드
   useEffect(()=>{
     (async()=>{
-      const savedCoaches=await sGet("settings:coaches");
-      if(savedCoaches&&savedCoaches.length>0) setCoaches(savedCoaches);
-      const evKeys=await sList("events:");
-      const evList=[];
-      for(const k of evKeys){const v=await sGet(k);if(v)evList.push(v);}
-      setEvents(evList.sort((a,b)=>a.date>b.date?1:-1));
-      const ntKeys=await sList("notices:");
-      const ntList=[];
-      for(const k of ntKeys){const v=await sGet(k);if(v)ntList.push(v);}
-      setNotices(ntList.sort((a,b)=>(b.createdAt||0)-(a.createdAt||0)));
+      const d=await loadAppData();
+      setAppData(d);
+      setCoaches(d.coaches||COACHES_DEFAULT);
+      setEvents((d.events||[]).sort((a,b)=>a.date>b.date?1:-1));
+      const ntArr=Object.values(d.notices||{}).sort((a,b)=>(b.createdAt||0)-(a.createdAt||0));
+      setNotices(ntArr);
       setLoading(false);
     })();
   },[]);
 
+  // 로그인 시 체크 상태 로드
   useEffect(()=>{
     if(!user)return;
-    (async()=>{const d=await sGet(`checks:${user}`);setChecks(d||{});})();
+    (async()=>{
+      const d=await loadAppData();
+      setChecks((d.checks||{})[user]||{});
+    })();
   },[user]);
 
+  // 데이터 저장 헬퍼 — 항상 최신 상태로 저장
+  async function persist(updater){
+    const current=await loadAppData();
+    const next=updater(current);
+    await saveAppData(next);
+    return next;
+  }
+
   async function addCoach(name){
-    const next=[...coaches,name];setCoaches(next);await sSet("settings:coaches",next);
+    const next=[...coaches,name];
+    setCoaches(next);
+    await persist(d=>({...d,coaches:next}));
   }
   async function removeCoach(name){
     if(name===ADMIN){alert("관리자는 삭제할 수 없어요!");return;}
-    const next=coaches.filter(c=>c!==name);setCoaches(next);await sSet("settings:coaches",next);
+    const next=coaches.filter(c=>c!==name);
+    setCoaches(next);
+    await persist(d=>({...d,coaches:next}));
   }
 
   function login(){
@@ -615,26 +635,42 @@ export default function App(){
   }
 
   async function toggleCheck(id){
-    const next={...checks,[id]:!checks[id]};setChecks(next);await sSet(`checks:${user}`,next);
+    const next={...checks,[id]:!checks[id]};
+    setChecks(next);
+    await persist(d=>({...d,checks:{...(d.checks||{}), [user]:next}}));
   }
   async function addEvent(){
     if(!newEv.title||!newEv.date)return;
     const ev={...newEv,id:uid(),createdAt:Date.now()};
-    await sSet(`events:${ev.id}`,ev);
-    setEvents(v=>[...v,ev].sort((a,b)=>a.date>b.date?1:-1));
+    const nextEvs=[...events,ev].sort((a,b)=>a.date>b.date?1:-1);
+    setEvents(nextEvs);
+    await persist(d=>({...d,events:nextEvs}));
     setNewEv({title:"",date:"",desc:""});setShowEv(false);
   }
   async function delEvent(id){
-    await sDel(`events:${id}`);setEvents(v=>v.filter(e=>e.id!==id));setSelDay(null);
+    const nextEvs=events.filter(e=>e.id!==id);
+    setEvents(nextEvs);
+    await persist(d=>({...d,events:nextEvs}));
+    setSelDay(null);
   }
   async function addNotice(){
     if(!newNt.title)return;
     const nt={...newNt,id:uid(),createdAt:Date.now(),date:new Date().toLocaleDateString("ko-KR")};
-    await sSet(`notices:${nt.id}`,nt);
-    setNotices(v=>[nt,...v]);setNewNt({title:"",content:""});setShowNt(false);
+    const nextNts=[nt,...notices];
+    setNotices(nextNts);
+    await persist(d=>{
+      const nMap={...(d.notices||{}),[nt.id]:nt};
+      return{...d,notices:nMap};
+    });
+    setNewNt({title:"",content:""});setShowNt(false);
   }
   async function delNotice(id){
-    await sDel(`notices:${id}`);setNotices(v=>v.filter(n=>n.id!==id));
+    const nextNts=notices.filter(n=>n.id!==id);
+    setNotices(nextNts);
+    await persist(d=>{
+      const nMap={...(d.notices||{})};delete nMap[id];
+      return{...d,notices:nMap};
+    });
   }
 
   const {first,total}=getMonthDays(y,m);
