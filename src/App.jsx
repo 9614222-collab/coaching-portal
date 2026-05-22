@@ -15,6 +15,7 @@ const fbApp = initializeApp(firebaseConfig);
 const db = getFirestore(fbApp);
 
 const COACHES_DEFAULT = ["김윤정","임서영","윤민정","나지수","서예린"];
+const COACHES = COACHES_DEFAULT;
 const ADMIN = "김윤정";
 
 async function loadCoaches(){
