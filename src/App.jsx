@@ -3,12 +3,13 @@ import { initializeApp } from "firebase/app";
 import { getFirestore, doc, getDoc, setDoc, collection, getDocs, addDoc, deleteDoc } from "firebase/firestore";
 
 const firebaseConfig = {
-  apiKey: "AIzaSyDMCUREbwO3e0DxnZVr3MGajk8CmBfA1_w",
-  authDomain: "coaching-portal-2363f.firebaseapp.com",
-  projectId: "coaching-portal-2363f",
-  storageBucket: "coaching-portal-2363f.firebasestorage.app",
-  messagingSenderId: "867806990305",
-  appId: "1:867806990305:web:63de8bfb6c357141f20ca0"
+  apiKey: "AIzaSyCTEgVO57AiRAUvAa8SAIxFIZXpxJw2FfM",
+  authDomain: "coaching-portal-771c5.firebaseapp.com",
+  projectId: "coaching-portal-771c5",
+  storageBucket: "coaching-portal-771c5.firebasestorage.app",
+  messagingSenderId: "181141840529",
+  appId: "1:181141840529:web:6f84eb3472b44c6ff69530",
+  measurementId: "G-65Q9VGF8WY"
 };
 
 const fbApp = initializeApp(firebaseConfig);
