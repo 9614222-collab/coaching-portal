@@ -25,6 +25,7 @@ const COACHES_DEFAULT = [
   {name:"김도은",isNew:true},
 ];
 const ADMIN = "김윤정";
+const ADMIN_PW = "2879";
 
 const TASKS = [
   {id:"t1",title:"신입코치 영상 1",sub:"V-CAM",url:"https://vcampus.educo.co.kr/login",color:"#5C6BC0"},
@@ -531,6 +532,101 @@ function NoticeGen(){
   );
 }
 
+function MeetingTab(){
+  const [meetings,setMeetings]=useState([]);
+  const [loading,setLoading]=useState(true);
+  const [showForm,setShowForm]=useState(false);
+  const [form,setForm]=useState({coachName:"",date:new Date().toISOString().slice(0,10),content:"",nextPlan:""});
+  const coachList=["임서영","윤민정","나지수","서예린","김도은"];
+
+  useEffect(()=>{
+    (async()=>{
+      const all=await fbGetAll("meetings");
+      setMeetings(all.sort((a,b)=>b.date?.localeCompare(a.date)));
+      setLoading(false);
+    })();
+  },[]);
+
+  async function addMeeting(){
+    if(!form.coachName||!form.date||!form.content)return;
+    const data={...form,createdAt:Date.now()};
+    const id=await fbAdd("meetings",data);
+    if(id){setMeetings(v=>[{...data,id},...v]);}
+    setForm({coachName:"",date:new Date().toISOString().slice(0,10),content:"",nextPlan:""});
+    setShowForm(false);
+  }
+
+  async function delMeeting(id){
+    if(!window.confirm("이 미팅 기록을 삭제하시겠습니까?"))return;
+    await fbDel("meetings",id);
+    setMeetings(v=>v.filter(m=>m.id!==id));
+  }
+
+  const lb={fontSize:11,color:"#555",fontWeight:600,marginBottom:3,display:"block"};
+  const iSt={padding:"8px 10px",borderRadius:8,border:"1px solid #ddd",fontSize:13,marginBottom:0,background:"#fafafa",width:"100%"};
+
+  return(
+    <div className="card">
+      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:14}}>
+        <h3 style={{fontSize:15,fontWeight:600,color:"#333"}}>📝 미팅 기록</h3>
+        <button onClick={()=>setShowForm(s=>!s)} style={{padding:"6px 14px",borderRadius:8,background:"#5C6BC0",color:"#fff",border:"none",cursor:"pointer",fontWeight:600,fontSize:13}}>+ 미팅 추가</button>
+      </div>
+
+      {showForm&&(
+        <div style={{background:"#f0f7ff",borderRadius:12,padding:16,marginBottom:16,border:"1px solid #BBDEFB"}}>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:10}}>
+            <label><span style={lb}>코치 이름</span>
+              <select value={form.coachName} onChange={e=>setForm(f=>({...f,coachName:e.target.value}))} style={iSt}>
+                <option value="">— 선택 —</option>
+                {coachList.map(c=><option key={c}>{c}</option>)}
+              </select>
+            </label>
+            <label><span style={lb}>미팅 날짜</span>
+              <input type="date" value={form.date} onChange={e=>setForm(f=>({...f,date:e.target.value}))} style={iSt}/>
+            </label>
+          </div>
+          <label><span style={lb}>미팅 내용</span>
+            <textarea value={form.content} onChange={e=>setForm(f=>({...f,content:e.target.value}))} placeholder="미팅에서 나눈 내용을 입력하세요" rows={4} style={{...iSt,resize:"vertical",marginBottom:8}}/>
+          </label>
+          <label><span style={lb}>다음 액션 플랜</span>
+            <textarea value={form.nextPlan} onChange={e=>setForm(f=>({...f,nextPlan:e.target.value}))} placeholder="다음 미팅 전까지 할 일" rows={2} style={{...iSt,resize:"vertical",marginBottom:10}}/>
+          </label>
+          <div style={{display:"flex",gap:8}}>
+            <button onClick={()=>setShowForm(false)} style={cBt}>취소</button>
+            <button onClick={addMeeting} style={sBt}>저장</button>
+          </div>
+        </div>
+      )}
+
+      {loading&&<p style={{textAlign:"center",color:"#aaa",padding:"2rem 0"}}>불러오는 중...</p>}
+      {!loading&&meetings.length===0&&<p style={{textAlign:"center",color:"#aaa",padding:"2rem 0",fontSize:13}}>미팅 기록이 없어요.</p>}
+
+      {meetings.map(m=>(
+        <div key={m.id} style={{background:"#f9f9f9",borderRadius:10,border:"1px solid #eee",padding:"14px 16px",marginBottom:10}}>
+          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:10}}>
+            <div style={{display:"flex",alignItems:"center",gap:8}}>
+              <div style={{width:34,height:34,borderRadius:"50%",background:"#E8EAF6",display:"flex",alignItems:"center",justifyContent:"center",fontSize:13,fontWeight:600,color:"#3949AB"}}>{m.coachName?.[0]}</div>
+              <div>
+                <span style={{fontSize:14,fontWeight:600,color:"#333"}}>{m.coachName} 코치</span>
+                <span style={{fontSize:11,color:"#aaa",marginLeft:8}}>{m.date}</span>
+              </div>
+            </div>
+            
+          </div>
+          <div style={{background:"#fff",borderRadius:8,padding:"10px 12px",marginBottom:8,border:"1px solid #eee"}}>
+            <p style={{fontSize:11,color:"#5C6BC0",fontWeight:600,marginBottom:4}}>📋 미팅 내용</p>
+            <p style={{fontSize:13,color:"#333",lineHeight:1.7,whiteSpace:"pre-wrap"}}>{m.content}</p>
+          </div>
+          {m.nextPlan&&<div style={{background:"#FFF8E1",borderRadius:8,padding:"10px 12px",border:"1px solid #FFE082"}}>
+            <p style={{fontSize:11,color:"#F57F17",fontWeight:600,marginBottom:4}}>🎯 다음 액션 플랜</p>
+            <p style={{fontSize:13,color:"#333",lineHeight:1.7,whiteSpace:"pre-wrap"}}>{m.nextPlan}</p>
+          </div>}
+        </div>
+      ))}
+    </div>
+  );
+}
+
 const SUBJECTS_ALL = ["국어","영어","수학","사회","과학"];
 const EXAM_TYPES = ["중간고사","기말고사","모의고사","단원평가","기타"];
 const STUDY_METHODS = ["학원","스스로 하기","과외","인강","학교 수업만"];
@@ -730,7 +826,16 @@ export default function App(){
 
   async function addCoach(name,isNew=true){const next=[...coaches,{name,isNew}];setCoaches(next);await fbSet("settings","coaches",{list:next});}
   async function removeCoach(name){if(name===ADMIN){alert("관리자는 삭제할 수 없어요!");return;}if(!window.confirm(`'${name}' 코치를 삭제하시겠습니까?`))return;const next=coaches.filter(c=>c.name!==name);setCoaches(next);await fbSet("settings","coaches",{list:next});}
-  function login(){const n=inp.trim();if(!n){setErr("이름을 입력해 주세요.");return;}if(!coaches.some(c=>c.name===n)){setErr("등록되지 않은 이름입니다.");return;}setUser(n);}
+  function login(){
+    const n=inp.trim();
+    if(!n){setErr("이름을 입력해 주세요.");return;}
+    if(!coaches.some(c=>c.name===n)){setErr("등록되지 않은 이름입니다.");return;}
+    if(n===ADMIN){
+      const pw=window.prompt("관리자 비밀번호를 입력하세요:");
+      if(pw!==ADMIN_PW){setErr("비밀번호가 틀렸습니다.");return;}
+    }
+    setUser(n);
+  }
   const isNewCoach=coaches.find(c=>c.name===user)?.isNew??true;
   async function toggleCheck(id){const next={...checks,[id]:!checks[id]};setChecks(next);await fbSet("checks",user,{data:next});}
   async function addEvent(){if(!newEv.title||!newEv.date)return;const id=await fbAdd("events",{...newEv,createdAt:Date.now()});if(id)setEvents(v=>[...v,{...newEv,id}]);setNewEv({title:"",date:"",desc:""});setShowEv(false);}
@@ -803,7 +908,7 @@ export default function App(){
         </div>}
 
         <div className="tabs">
-          {[["calendar","📅 일정"],["resource","📂 자료"],["settle","💰 지원금"],["notice","📌 공지"],["notice_gen","📄 안내문"],["free_lesson","🆓 무료수업"],["exam_analysis","📊 시험분석"],["students","📚 학생관리"],...(isAdmin?[["progress","👥 현황"]]:[])]
+          {[["calendar","📅 일정"],["resource","📂 자료"],["settle","💰 지원금"],["notice","📌 공지"],["notice_gen","📄 안내문"],["free_lesson","🆓 무료수업"],["exam_analysis","📊 시험분석"],["students","📚 학생관리"],...(isAdmin?[["meeting","📝 미팅"],["progress","👥 현황"]]:[])]
             .map(([k,l])=><button key={k} className={`tab-btn${tab===k?" active":""}`} onClick={()=>setTab(k)}>{l}</button>)}
         </div>
 
@@ -904,6 +1009,7 @@ export default function App(){
           </div>
         )}
 
+        {tab==="meeting"&&isAdmin&&<MeetingTab/>}
         {tab==="students"&&<StudentTab coachName={user}/>}
         {tab==="notice_gen"&&<NoticeGen/>}
         {tab==="free_lesson"&&<FreeLessonNotice/>}
