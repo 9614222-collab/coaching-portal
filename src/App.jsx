@@ -537,7 +537,7 @@ function MeetingTab(){
   const [loading,setLoading]=useState(true);
   const [showForm,setShowForm]=useState(false);
   const [form,setForm]=useState({coachName:"",date:new Date().toISOString().slice(0,10),content:"",nextPlan:""});
-  const coachList=["임서영","윤민정","나지수","서예린","김도은"];
+  const coachList=coaches.filter(c=>c.name!==ADMIN).map(c=>c.name);
 
   useEffect(()=>{
     (async()=>{
