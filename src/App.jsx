@@ -532,7 +532,7 @@ function NoticeGen(){
   );
 }
 
-function MeetingTab(){
+function MeetingTab({ coaches }){
   const [meetings,setMeetings]=useState([]);
   const [loading,setLoading]=useState(true);
   const [showForm,setShowForm]=useState(false);
@@ -1009,7 +1009,7 @@ export default function App(){
           </div>
         )}
 
-        {tab==="meeting"&&isAdmin&&<MeetingTab/>}
+        {tab==="meeting"&&isAdmin&&<MeetingTab coaches={coaches}/>}
         {tab==="students"&&<StudentTab coachName={user}/>}
         {tab==="notice_gen"&&<NoticeGen/>}
         {tab==="free_lesson"&&<FreeLessonNotice/>}
